@@ -27,8 +27,14 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface MBotLab {
 
-    /** Which room the robot starts in. */
+    /** Which built-in room the robot starts in. */
     String world() default "open-room";
+
+    /**
+     * A board you built: a class that extends {@link Board}. When you set this,
+     * {@code world} is ignored. For example: {@code @MBotLab(board = SpiralMaze.class)}.
+     */
+    Class<? extends Board> board() default Board.class;
 
     /**
      * The name of a real robot to drive instead of the simulator, such as {@code "StingBot"}.

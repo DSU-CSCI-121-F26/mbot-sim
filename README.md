@@ -24,7 +24,9 @@ From Part 21 students build the robot from parts instead (`Chassis` + `Ultrasoni
 `LineSensor`) inside their own class, which is how the course teaches composition. From
 Part 23 they write their own robot class that `extends MBot2`, add the extra sensors it needs
 (`Scanner`, `ColorSensor`) as fields, and override `run()`, which is how it teaches inheritance.
-The viewer draws their class chain as a diagram.
+The viewer draws their class chain as a diagram. Students can also **build their own boards** (`extends Board`, drawn as a
+text map) and play **hide and seek** against drones (`Sentry`, `Patrol`, `Hunter`, or their own
+`extends Drone` state machines).
 
 That file is everything a student touches: one import, one annotation, `main`, and their code.
 No setup call, no save call, no server, no HTML, no JavaScript. The method names match the
@@ -73,7 +75,7 @@ behind the first object the student makes.
 
 | Path | What |
 |---|---|
-| `src/main/java/mbot/` | What students use: `MBotLab`, `MBot2`, `Chassis`, `Ultrasonic`, `LineSensor`, `Scanner`, `ColorSensor`; and `Testing` for lab tests |
+| `src/main/java/mbot/` | What students use: `MBotLab`, `MBot2`, `Chassis`, the sensors (`Ultrasonic`, `LineSensor`, `Scanner`, `ColorSensor`, `DroneRadar`), `Board`, `Drone` (+ `Sentry`, `Patrol`, `Hunter`); and `Testing` for lab tests |
 | `src/main/java/mbot/internal/` | Session, Sim, World, Sources, Tee, Viewer, ViewerMain, Specs, Json |
 | `src/main/resources/mbot/viewer/` | `index.html` and three.js r178 (`vendor/`, MIT) |
 | `src/main/resources/mbot/worlds/` | Built-in worlds ([docs/WORLDS.md](docs/WORLDS.md)) |
@@ -96,6 +98,7 @@ Handy system properties (for the instructor, never needed by students):
 | `-Dmbot.open=off` | Start the viewer if needed, but do not open a browser tab |
 | `-Dmbot.port=8799` | Use another port |
 | `-Dmbot.home=/some/dir` | Save runs somewhere other than `~/.mbot-sim` |
+| `-Dmbot.ignore=arena.` | Treat these packages as tools, not student code (no lines, no source tabs) |
 
 `http://localhost:8121/#step=300&cam=top` opens a run paused at step 300 from the top
 camera, which is useful for pointing a student at one moment.

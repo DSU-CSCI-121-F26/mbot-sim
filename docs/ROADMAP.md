@@ -33,7 +33,30 @@ student's class chain from their real code (fields, null sensor fields in red, o
 says where each call comes from ("straight() is inherited from Chassis", "super.straight()
 runs Chassis's version"). Worlds: `color-zones` (floor `patches`), `junctions`.
 
+## Boards and hide and seek · built (not yet released)
+
+**Student-built boards.** `class MyMaze extends Board`: a text map (`#` walls, `S` start, `G`
+goal, `o` cans, `x` boxes, tape, colored floor, `D` sentries) and/or placement methods; rules
+(`maxBumps`, `timeLimit`, `maxTags`, `requires`); `@MBotLab(board = MyMaze.class)`;
+`Testing.start(MyMaze.class)`. BoardCheck catches unplayable boards before the run. The viewer
+shows ✓ Mission complete / ✗ Mission failed and the board's author.
+
+**Drones.** `Sentry`, `Patrol`, `Hunter` (a four-mode state machine students can read), and
+student drones (`extends Drone`, one `tick()` method, ten times a second). Drones see 120 cm,
+±30°, blocked by walls and boxes; 0.5 s in sight = a tag; 3 tags (per board) = shutdown.
+`DroneRadar` lets a robot know when it is watched. The viewer draws quadcopters, vision cones
+clipped at walls (red while seeing), hearts for tags left, and a grey robot after shutdown.
+
+**Engine.** Robot motion is now stepped in time (0.01 s), so the world moves while the robot
+drives, reads, scans or waits.
+
 ## Next
+
+- **The MBot Arena** (`../mbot-arena`, built, not yet on GitHub): like `robocode/`, students add
+  `bots/`, `boards/` and `drones/<username>/`; `./arena` plays every robot on every board and
+  through every drone's gauntlets, one JVM per robot with a time limit, and writes a scoreboard.
+  It uses `Testing.start(Board)`, `Launch.on(board, mission)` for replays, and
+  `-Dmbot.ignore=arena.` so replays show only student code.
 
 - Checkpoint worlds (an ordered array of zones) with a pass/fail end card.
 - More than one robot in a run, so `MBot2[] fleet = { new Scout(), new Sweeper() }` can drive

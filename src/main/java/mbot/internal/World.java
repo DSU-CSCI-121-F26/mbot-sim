@@ -22,6 +22,9 @@ public final class World {
             "color-zones", "junctions"};
     public static final java.util.Set<String> COLORS = java.util.Set.of("red", "green", "blue", "yellow");
 
+    /** A drone placed on the board, and where it starts. */
+    public record DroneSpec(mbot.Drone drone, double x, double y, double heading) {}
+
     /** A colored patch of floor, for the ColorSensor. */
     public record Patch(double x, double y, double w, double h, String color) {}
     static final double BORDER_CM = 5;
@@ -35,10 +38,19 @@ public final class World {
     public final List<double[]> cans = new ArrayList<>();      // {x, y, r}, solid round objects
     public final List<String> requires = new ArrayList<>();    // sensors this world is built for
     public final List<Patch> patches = new ArrayList<>();      // colored floor, later ones on top
+    public final List<DroneSpec> drones = new ArrayList<>();
+    public final int maxTags;                                  // tags before the robot shuts down
+    public final int maxBumps;                                 // -1 = no limit
+    public final double timeLimit;                             // robot seconds; infinity = no limit
     private final Map<String, List<double[]>> zones = new java.util.HashMap<>();
 
-    @SuppressWarnings("unchecked")
     World(String name, Map<String, Object> raw) {
+        this(name, raw, List.of());
+    }
+
+    /** A world built from a Board: its JSON-shaped description plus the drone objects it placed. */
+    @SuppressWarnings("unchecked")
+    public World(String name, Map<String, Object> raw, List<DroneSpec> placed) {
         this.name = name;
         this.raw = raw;
         List<Object> size = (List<Object>) raw.get("size");
@@ -84,6 +96,16 @@ public final class World {
         for (Object o : (List<Object>) raw.getOrDefault("requires", List.of())) {
             requires.add(String.valueOf(o));
         }
+        Map<String, Object> rules = (Map<String, Object>) raw.getOrDefault("rules", Map.of());
+        maxTags = (int) d(rules.getOrDefault("maxTags", 3.0));
+        maxBumps = (int) d(rules.getOrDefault("maxBumps", -1.0));
+        timeLimit = rules.containsKey("timeLimit") ? d(rules.get("timeLimit")) : Double.POSITIVE_INFINITY;
+        drones.addAll(placed);
+        if (placed.isEmpty()) {
+            for (Object o : (List<Object>) raw.getOrDefault("drones", List.of())) {
+                drones.add(droneFromJson((Map<String, Object>) o));
+            }
+        }
         for (Object o : (List<Object>) raw.getOrDefault("tape", List.of())) {
             Map<String, Object> t = (Map<String, Object>) o;
             double tw = d(t.getOrDefault("width", 2.0));
@@ -123,6 +145,48 @@ public final class World {
             throw new IllegalArgumentException("Could not read the world file " + name + ": " + e.getMessage());
         }
         return new World(name, (Map<String, Object>) Json.parse(text));
+    }
+
+    /** The built-in drones, from a JSON world file. */
+    @SuppressWarnings("unchecked")
+    static DroneSpec droneFromJson(Map<String, Object> o) {
+        String type = String.valueOf(o.getOrDefault("type", "sentry"));
+        double heading = d(o.getOrDefault("heading", 90.0));
+        mbot.Drone drone = switch (type) {
+            case "sentry" -> new mbot.Sentry(d(o.getOrDefault("spin", 45.0)));
+            case "hunter" -> new mbot.Hunter();
+            case "patrol" -> {
+                List<Object> pts = (List<Object>) o.get("points");
+                double[] xy = new double[pts.size()];
+                for (int i = 0; i < xy.length; i++) xy[i] = d(pts.get(i));
+                yield new mbot.Patrol(xy);
+            }
+            default -> throw new IllegalArgumentException("Unknown drone type \"" + type
+                    + "\". Use sentry, patrol or hunter.");
+        };
+        if (drone instanceof mbot.Patrol p) {
+            double[] st = p.start();
+            return new DroneSpec(drone, st[0], st[1], heading);
+        }
+        return new DroneSpec(drone, d(o.get("x")), d(o.get("y")), heading);
+    }
+
+    /** A student's board: make one with its no-argument constructor and build the world from it. */
+    public static World fromBoard(Class<? extends mbot.Board> type) {
+        try {
+            java.lang.reflect.Constructor<? extends mbot.Board> c = type.getDeclaredConstructor();
+            c.setAccessible(true);
+            return c.newInstance().toWorld();
+        } catch (NoSuchMethodException e) {
+            throw new IllegalArgumentException(type.getSimpleName() + " needs a constructor with no parameters: public "
+                    + type.getSimpleName() + "() { super(\"name\", \"you\"); ... }");
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException r) throw r;
+            throw new IllegalStateException("Building " + type.getSimpleName() + " failed: " + cause, cause);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not build " + type.getSimpleName() + ": " + e.getMessage(), e);
+        }
     }
 
     /** Zones with this label, as {x, y, w, h}. */

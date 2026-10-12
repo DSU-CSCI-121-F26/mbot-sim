@@ -21,8 +21,13 @@ final class Sources {
     final Map<String, String> files = new LinkedHashMap<>();
     private final Path root = Path.of(System.getProperty("user.dir"));
 
+    /** Extra packages that are tools, not student code, e.g. -Dmbot.ignore=arena. (comma-separated). */
+    private static final String[] IGNORE = System.getProperty("mbot.ignore", "").isBlank() ? new String[0]
+            : System.getProperty("mbot.ignore").split(",");
+
     /** Library and JDK code is never "the student's line". */
     static boolean isStudent(String className) {
+        for (String p : IGNORE) if (!p.isBlank() && className.startsWith(p.trim())) return false;
         return !(className.startsWith("mbot.") || className.startsWith("java.") || className.startsWith("javax.")
                 || className.startsWith("jdk.") || className.startsWith("sun.") || className.startsWith("com.sun.")
                 || className.startsWith("com.intellij.") || className.startsWith("org.junit.")

@@ -12,9 +12,9 @@ import java.util.List;
  */
 public final class Sim {
 
-    static final double STEP_CM = 0.5;
     static final double DT_S = 0.01;
     static final double SAMPLE_S = 0.05;
+    static final double DRONE_TICK_S = 0.1;
 
     public final World world;
     public double x, y, h;              // cm, cm, degrees (0 = +x, left turns positive)
@@ -22,11 +22,32 @@ public final class Sim {
     public double time;                 // robot seconds since the program started
     public boolean bumped;              // set by the last motion if it hit something
 
+    public final List<DroneBody> drones = new ArrayList<>();
+    public int tags;
+    public int maxTags;
+    public double timeLimit;
+    public String shutdown;             // null while running; "tags" or "time" once it has shut down
+    final List<double[]> tagEvents = new ArrayList<>();   // {time, drone index}, drained per frame
+    private double droneClock;
+
     public Sim(World world) {
         this.world = world;
         x = world.startX;
         y = world.startY;
         h = world.startHeading;
+        maxTags = world.maxTags;
+        timeLimit = world.timeLimit;
+        java.util.Map<String, Integer> seen = new java.util.HashMap<>();
+        for (World.DroneSpec d : world.drones) {
+            seen.merge(d.drone().getName(), 1, Integer::sum);
+        }
+        java.util.Map<String, Integer> count = new java.util.HashMap<>();
+        for (World.DroneSpec d : world.drones) {
+            String base = d.drone().getName();
+            String name = seen.get(base) > 1 ? base + " " + count.merge(base, 1, Integer::sum) : base;
+            drones.add(new DroneBody(d.drone(), name, d.x(), d.y(), d.heading(), this));
+        }
+        for (DroneBody d : drones) d.look();
     }
 
     public boolean moving() {
@@ -37,6 +58,54 @@ public final class Sim {
         return new double[]{x, y, h};
     }
 
+    // ------------------------------------------------------------------ the rest of the world
+
+    /**
+     * Everything that is not the robot moves on: drones fly and look, tags land, the clock runs.
+     * Called once per small time step from every motion, and from idle().
+     */
+    void stepWorld(double dt) {
+        time += dt;
+        if (drones.isEmpty()) {
+            if (shutdown == null && time > timeLimit + 1e-9) shutdown = "time";
+            return;
+        }
+        droneClock += dt;
+        while (droneClock >= DRONE_TICK_S - 1e-9) {
+            droneClock -= DRONE_TICK_S;
+            for (DroneBody d : drones) {
+                d.look();
+                d.drone.tick();
+                d.samples.add(new double[]{time, d.x, d.y, d.h, d.seeing ? 1 : 0});
+            }
+        }
+        for (int i = 0; i < drones.size(); i++) {
+            DroneBody d = drones.get(i);
+            d.move(dt);
+            d.look();
+            d.cooldown -= dt;
+            d.watch = d.seeing ? d.watch + dt : 0;
+            if (shutdown == null && d.watch >= DroneBody.TAG_AFTER_S && d.cooldown <= 0) {
+                tags++;
+                tagEvents.add(new double[]{time, i});
+                d.cooldown = DroneBody.COOLDOWN_S;
+                d.watch = 0;
+                if (tags >= maxTags) shutdown = "tags";
+            }
+        }
+        if (shutdown == null && time > timeLimit + 1e-9) shutdown = "time";
+    }
+
+    /** The robot sits still while time passes (a sensor read, a scan, a Thread.sleep). */
+    public void idle(double seconds) {
+        double t = 0;
+        while (t < seconds - 1e-9 && shutdown == null) {
+            double dt = Math.min(DT_S, seconds - t);
+            stepWorld(dt);
+            t += dt;
+        }
+    }
+
     // ------------------------------------------------------------------ motion
 
     /** Drive a set distance (negative = backward) at the straight() speed. */
@@ -44,10 +113,10 @@ public final class Sim {
         bumped = false;
         List<double[]> path = new ArrayList<>();
         path.add(pose());
-        double dir = Math.signum(cm), rad = Math.toRadians(h);
+        double dir = Math.signum(cm), rad = Math.toRadians(h), v = Specs.STRAIGHT_CM_PER_S;
         double done = 0, total = Math.abs(cm);
-        while (done < total) {
-            double step = Math.min(STEP_CM, total - done);
+        while (done < total - 1e-9 && shutdown == null) {
+            double step = Math.min(v * DT_S, total - done);
             double nx = x + dir * step * Math.cos(rad), ny = y + dir * step * Math.sin(rad);
             if (hits(nx, ny)) {
                 bumped = true;
@@ -56,8 +125,8 @@ public final class Sim {
             x = nx;
             y = ny;
             done += step;
+            stepWorld(step / v);
         }
-        time += done / Specs.STRAIGHT_CM_PER_S;
         path.add(pose());
         return path;
     }
@@ -67,10 +136,15 @@ public final class Sim {
         bumped = false;
         List<double[]> path = new ArrayList<>();
         path.add(pose());
-        h = norm(h + degrees);
-        time += Math.abs(degrees) / Specs.TURN_DEG_PER_S;
+        double start = h, turned = 0, total = Math.abs(degrees), dir = Math.signum(degrees);
+        while (turned < total - 1e-9 && shutdown == null) {
+            double step = Math.min(Specs.TURN_DEG_PER_S * DT_S, total - turned);
+            turned += step;
+            h = norm(start + dir * turned);
+            stepWorld(step / Specs.TURN_DEG_PER_S);
+        }
         double[] end = pose();
-        end[2] = path.get(0)[2] + degrees;     // keep the unwrapped angle so the viewer spins the right way
+        end[2] = start + dir * turned;      // keep the unwrapped angle so the viewer spins the right way
         path.add(end);
         return path;
     }
@@ -81,7 +155,7 @@ public final class Sim {
         List<double[]> path = new ArrayList<>();
         path.add(pose());
         double t = 0, sinceSample = 0, unwrapped = h;
-        while (t < seconds - 1e-9) {
+        while (t < seconds - 1e-9 && shutdown == null) {
             double dt = Math.min(DT_S, seconds - t);
             double v = (left + right) / 2, w = Math.toDegrees((right - left) / Specs.TRACK_CM);
             double rad = Math.toRadians(h);
@@ -89,7 +163,7 @@ public final class Sim {
             if (v != 0 && hits(nx, ny)) {
                 bumped = true;
                 left = right = 0;
-                t += dt;
+                stepWorld(dt);
                 break;
             }
             x = nx;
@@ -97,16 +171,27 @@ public final class Sim {
             h = norm(h + w * dt);
             unwrapped += w * dt;
             t += dt;
+            stepWorld(dt);
             sinceSample += dt;
             if (sinceSample >= SAMPLE_S - 1e-9) {
                 path.add(new double[]{x, y, unwrapped});
                 sinceSample = 0;
             }
         }
-        time += t;
+        if (shutdown != null) left = right = 0;
         double[] last = path.get(path.size() - 1);
         if (last[0] != x || last[1] != y || last[2] != unwrapped) path.add(new double[]{x, y, unwrapped});
         return path;
+    }
+
+    // ------------------------------------------------------------------ the mission
+
+    /** Robot centre inside a zone with this label? */
+    public boolean inZone(String label) {
+        for (double[] z : world.zones(label)) {
+            if (x >= z[0] && x <= z[0] + z[2] && y >= z[1] && y <= z[1] + z[3]) return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ sensors

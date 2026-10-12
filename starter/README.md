@@ -35,6 +35,21 @@ The first run can take a few seconds while the viewer starts. After that it is q
 
 ---
 
+## Name your robot
+
+`new MBot2()` makes the standard robot: named "MBot2", blue, with sky-blue eyes.
+You can also give it a name and colors:
+
+```java
+MBot2 bot = new MBot2("Sparky", "red", "yellow");   // name, body color, eye color
+```
+
+Colors: `red`, `orange`, `yellow`, `green`, `blue`, `sky`, `purple`, `pink`, `teal`, `white`,
+`black`, `gray`, `gold`, or a hex code like `"#ff8800"`. The name shows on the robot's screen.
+`bot.getName()` gives it back, and `System.out.println(bot)` prints it.
+
+---
+
 ## The robot's commands
 
 Every command starts with `bot.` (or whatever you named your robot).
@@ -88,7 +103,7 @@ public class Scout extends MBot2 {
     private Scanner scanner;            // an extra sensor this robot needs
 
     public Scout() {
-        super();                        // build the MBot2 part first
+        super("Scout", "orange", "white");   // build the MBot2 part first, with a name and colors
         scanner = new Scanner(this);    // then mount the extra sensor
     }
 
@@ -126,6 +141,14 @@ The `world` in `@MBotLab(world = "open-room")` is the room your robot starts in.
 | `"line-track"` | A loop of tape to follow. Needs a `LineSensor`. |
 | `"color-zones"` | Colored stripes, then a red stop pad. Needs a `ColorSensor`. |
 | `"junctions"` | A corridor that turns right, then left. Needs a `Scanner`. |
+
+---
+
+## Build your own boards, and play hide and seek
+
+- **[BOARDS.md](BOARDS.md):** draw your own board with text, add a goal and rules, and share it.
+- **[DRONES.md](DRONES.md):** put drones on a board that hunt your robot, use a `DroneRadar` to
+  sneak past them, and write your own drone.
 
 ---
 

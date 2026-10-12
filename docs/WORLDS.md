@@ -30,6 +30,16 @@ project folder).
 | `patches` | Colored floor for the `ColorSensor`: `{"x","y","w","h","color"}`, color one of `red` `green` `blue` `yellow`. Later patches sit on top; tape reads `black`, bare floor `white` |
 | `requires` | Sensors the world is built for (`"ultrasonic"`, `"line"`, `"scanner"`, `"color"`). If the run ends without one plugged in, the viewer says so |
 
+| `drones` | `[{"type":"sentry","x","y","heading","spin"}, {"type":"patrol","points":[x,y,x,y,...]}, {"type":"hunter","x","y"}]` |
+| `rules` | `{"maxTags": 3, "maxBumps": 2, "timeLimit": 60}`: all optional |
+| `author` | Who made it, shown in the viewer's header |
+
+**Students build boards in Java instead** (`class MyMaze extends Board`, with a text map and/or
+placement methods; see `starter/BOARDS.md`). `Board.toWorld()` produces exactly this structure,
+plus real `Drone` objects, so the simulator treats both the same way. Before a run, `BoardCheck`
+reports a start inside something solid, a goal no 17 cm robot can reach (breadth-first search
+over a 2.5 cm grid), and unknown sensor names.
+
 Built-in worlds: `open-room`, `wall-ahead`, `parking`, `hallway`, `obstacles`, `line-track`, `color-zones`, `junctions`.
 
 **Graded lab challenges should use their own world file in the lab repo**, not a built-in one:

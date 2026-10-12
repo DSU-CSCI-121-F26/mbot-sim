@@ -1,5 +1,7 @@
 package mbot;
 
+import mbot.internal.Session;
+
 /**
  * Your mBot2 robot, fully put together: a {@link Chassis} that comes with its
  * ultrasonic sensor and line sensor already plugged in.
@@ -33,9 +35,62 @@ package mbot;
  */
 public class MBot2 extends Chassis {
 
-    /** Turns on the robot. Make one of these at the start of {@code main}. */
+    private final String name;
+    private final String bodyColor;
+    private final String eyeColor;
+
+    /**
+     * Turns on a robot with the default look: named "MBot2", with a blue body and sky-blue eyes.
+     */
     public MBot2() {
+        this("MBot2", "blue", "sky");
+    }
+
+    /**
+     * Turns on a robot with its own name and colors.
+     *
+     * <pre>
+     * MBot2 sparky = new MBot2("Sparky", "red", "yellow");
+     * </pre>
+     *
+     * Colors can be a name: red, orange, yellow, green, blue, sky, purple, pink, teal,
+     * white, black, gray, gold. Or a hex code like "#ff8800".
+     *
+     * @param name what to call the robot. It shows on the CyberPi screen.
+     * @param bodyColor the color of the metal frame
+     * @param eyeColor the color of the rings around the ultrasonic "eyes" and the wheel hubs
+     */
+    public MBot2(String name, String bodyColor, String eyeColor) {
         super();
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("A robot needs a name, but it was given "
+                    + (name == null ? "null" : "an empty one") + ". Try new MBot2(\"Sparky\", \"red\", \"yellow\")");
+        }
+        this.name = name.trim();
+        this.bodyColor = Session.checkColor(bodyColor, "bodyColor");
+        this.eyeColor = Session.checkColor(eyeColor, "eyeColor");
+        session.identify(this, this.name, this.bodyColor, this.eyeColor);
+    }
+
+    /** @return this robot's name */
+    public String getName() {
+        return name;
+    }
+
+    /** @return this robot's body color, as it was given (for example "red") */
+    public String getBodyColor() {
+        return bodyColor;
+    }
+
+    /** @return this robot's eye color, as it was given (for example "yellow") */
+    public String getEyeColor() {
+        return eyeColor;
+    }
+
+    /** @return the robot's name */
+    @Override
+    public String toString() {
+        return name;
     }
 
     /**
@@ -79,6 +134,6 @@ public class MBot2 extends Chassis {
      * </pre>
      */
     public void run() {
-        session.emptyRun();
+        session.emptyRun(this);
     }
 }

@@ -26,4 +26,21 @@ class ExplainTest {
         }
         throw new AssertionError("expected a NullPointerException");
     }
+
+    @Test
+    void sensorBeforeRobotIsExplainedInItsOwnWords() {
+        try {
+            new mbot.Ultrasonic(null);
+        } catch (IllegalArgumentException e) {
+            String help = Session.explain(e);
+            assertTrue(help.startsWith("An Ultrasonic needs a robot to plug into"), help);
+            return;
+        }
+        throw new AssertionError("expected an IllegalArgumentException");
+    }
+
+    @Test
+    void endlessRecursionGetsAHint() {
+        assertTrue(Session.explain(new StackOverflowError()).contains("super.straight(cm)"));
+    }
 }
