@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    mbot-sim: a 3D simulator for the mBot2, for CSCI-121.
+
+    Students never build this project. They add it to their own pom.xml as one
+    dependency, the way a Spring Boot app adds spring-boot-starter. Everything
+    the viewer needs (the HTTP server, the page, three.js) is packed inside the
+    jar, so a student repo holds plain Java and nothing else.
+
+    No runtime dependencies on purpose: one jar, works offline.
+  -->
+  <groupId>edu.desu.cis</groupId>
+  <artifactId>mbot-sim</artifactId>
+  <version>0.1.0</version>
+  <name>mbot-sim</name>
+  <description>Write plain Java for the mBot2 and watch it drive in a 3D viewer.</description>
+  <url>https://github.com/DSU-CSCI-121-F26/mbot-sim</url>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>5.10.0</junit.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- A sources jar beside the main one, so IntelliJ shows students the Javadoc on MBot2. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals><goal>jar-no-fork</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+        <configuration>
+          <!-- Tests run the simulator headless: never start a viewer or open a browser. -->
+          <systemPropertyVariables>
+            <mbot.viewer>off</mbot.viewer>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
