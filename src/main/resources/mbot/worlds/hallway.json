@@ -1,0 +1,13 @@
+{
+  "title": "Hallway",
+  "about": "A hallway that turns right at the end. Drive to the goal without touching the walls.",
+  "size": [300, 300],
+  "start": {"x": 37, "y": 30, "heading": 90},
+  "walls": [
+    {"x": 75, "y": 0, "w": 225, "h": 180},
+    {"x": 0, "y": 250, "w": 300, "h": 50}
+  ],
+  "zones": [
+    {"x": 250, "y": 185, "w": 45, "h": 60, "label": "Goal"}
+  ]
+}

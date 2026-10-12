@@ -1,0 +1,8 @@
+target/
+.idea/
+*.iml
+out/
+starter/target/
+examples/target/
+solution/
+.DS_Store

@@ -1,0 +1,6 @@
+{
+  "title": "Open room",
+  "about": "An empty room, 2.4 m on each side. Good for drawing shapes with loops.",
+  "size": [240, 240],
+  "start": {"x": 120, "y": 60, "heading": 90}
+}

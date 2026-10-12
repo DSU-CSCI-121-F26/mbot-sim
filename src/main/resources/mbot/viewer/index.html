@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mBot2 Simulator</title>
+<!--
+  The mbot-sim viewer. Served out of the jar by ViewerMain; students never see this file.
+  It polls /api/latest/id, and when a new run lands it loads /api/latest and replays it.
+  three.js is bundled under vendor/ so it works with no internet.
+  Trace format: docs/TRACE_FORMAT.md in the mbot-sim repo.
+-->
+<style>
+:root {
+  --page: #f3f4f1; --panel: #ffffff; --ink: #17191c; --ink2: #4a4f57; --muted: #868b93;
+  --line: #e1e3e0; --soft: #f0f1ee; --accent: #1f6fd1; --accent-soft: #e3eefb;
+  --hl: #fff3c4; --hl-edge: #e8b100; --bad: #c8352f; --bad-soft: #fde8e6; --good: #188a3e;
+  --floor: #e9e7e1; --grid: #d6d3cb; --wall: #9a958b; --tape: #1d1d1f;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #111214; --panel: #1b1d20; --ink: #eef0f2; --ink2: #bfc4cb; --muted: #858b93;
+    --line: #2c2f34; --soft: #23262a; --accent: #5aa0ff; --accent-soft: #1d2d44;
+    --hl: #3a3317; --hl-edge: #d9a400; --bad: #ff6b62; --bad-soft: #3a1e1c; --good: #4cc77a;
+    --floor: #2a2b2e; --grid: #36383c; --wall: #6d6a64; --tape: #050505;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #111214; --panel: #1b1d20; --ink: #eef0f2; --ink2: #bfc4cb; --muted: #858b93;
+  --line: #2c2f34; --soft: #23262a; --accent: #5aa0ff; --accent-soft: #1d2d44;
+  --hl: #3a3317; --hl-edge: #d9a400; --bad: #ff6b62; --bad-soft: #3a1e1c; --good: #4cc77a;
+  --floor: #2a2b2e; --grid: #36383c; --wall: #6d6a64; --tape: #050505;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--page); color: var(--ink); font: 14px/1.45 var(--sans); display: flex; flex-direction: column; }
+button, select { font: inherit; color: inherit; }
+
+header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+header .run { color: var(--ink2); font-family: var(--mono); font-size: 13px; }
+header .spacer { flex: 1; }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink2); }
+.live input { accent-color: var(--accent); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 25%, transparent); }
+.iconbtn { border: 1px solid var(--line); background: var(--soft); border-radius: 7px; padding: 4px 9px; cursor: pointer; }
+
+main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: 0; }
+.stage { position: relative; min-height: 0; display: flex; flex-direction: column; }
+#scene { flex: 1; min-height: 0; position: relative; }
+#scene canvas { display: block; width: 100%; height: 100%; }
+
+.overlay { position: absolute; display: flex; gap: 6px; }
+.cams { top: 12px; left: 12px; }
+.cams button { border: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 88%, transparent); border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+.cams button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.hud { top: 12px; right: 12px; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--panel) 90%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 190px; font-size: 13px; }
+.hud .row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.hud .lbl { color: var(--muted); }
+.hud b { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.probes { display: flex; gap: 3px; }
+.probes i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); background: var(--soft); }
+.probes i.on { background: var(--tape); border-color: var(--tape); }
+.leds { display: flex; gap: 4px; }
+.leds i { width: 12px; height: 12px; border-radius: 50%; background: var(--soft); border: 1px solid var(--line); }
+
+.empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--ink2); padding: 24px; pointer-events: none; }
+.empty div { max-width: 420px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; }
+.empty b { color: var(--ink); font-size: 16px; display: block; margin-bottom: 6px; }
+
+.controls { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.controls button { border: 1px solid var(--line); background: var(--soft); border-radius: 8px; min-width: 36px; height: 34px; cursor: pointer; font-size: 15px; }
+.controls button.play { background: var(--accent); color: #fff; border-color: var(--accent); min-width: 52px; }
+.controls input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+.controls .step { font-family: var(--mono); font-size: 12px; color: var(--ink2); min-width: 120px; text-align: right; font-variant-numeric: tabular-nums; }
+.controls select { border: 1px solid var(--line); background: var(--soft); border-radius: 8px; height: 34px; padding: 0 6px; }
+
+aside { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+.card { border-bottom: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0; padding: 10px 14px 6px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.card h2 .tabs { display: flex; gap: 4px; text-transform: none; letter-spacing: 0; }
+.card h2 .tabs button { border: 1px solid var(--line); background: var(--soft); border-radius: 6px; padding: 1px 7px; font-size: 12px; cursor: pointer; font-family: var(--mono); }
+.card h2 .tabs button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+
+.say { padding: 4px 14px 14px; }
+.say .where { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.say .lineno { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.say code { font-family: var(--mono); font-size: 13px; background: var(--soft); border: 1px solid var(--line); padding: 2px 6px; border-radius: 6px; }
+.say p { margin: 8px 0 0; font-size: 15px; }
+.say .extra { color: var(--ink2); font-size: 13px; margin-top: 6px; }
+.say.bad p { color: var(--bad); }
+.say .value { font-family: var(--mono); font-weight: 700; color: var(--accent); }
+
+.code { flex: 1; min-height: 120px; }
+.code pre { margin: 0; flex: 1; overflow: auto; font: 12.5px/1.6 var(--mono); padding: 4px 0 12px; }
+.code .ln { display: grid; grid-template-columns: 34px 30px 1fr; white-space: pre; border-left: 3px solid transparent; }
+.code .ln .n { color: var(--muted); text-align: right; padding-right: 6px; user-select: none; }
+.code .ln .cnt { color: var(--accent); font-size: 10.5px; text-align: center; user-select: none; }
+.code .ln.hit { background: var(--soft); }
+.code .ln.cur { background: var(--hl); border-left-color: var(--hl-edge); }
+.code .ln.err { background: var(--bad-soft); border-left-color: var(--bad); }
+.code .kw { color: #a626a4; } .code .str { color: #2f8a2f; } .code .com { color: var(--muted); font-style: italic; } .code .numl { color: #b06000; }
+:root[data-theme="dark"] .code .kw { color: #d38ee6; } :root[data-theme="dark"] .code .str { color: #8fd18f; } :root[data-theme="dark"] .code .numl { color: #f0a85a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .code .kw { color: #d38ee6; } :root:not([data-theme="light"]) .code .str { color: #8fd18f; } :root:not([data-theme="light"]) .code .numl { color: #f0a85a; } }
+
+.console { max-height: 26%; min-height: 90px; }
+.console pre { margin: 0; overflow: auto; font: 12.5px/1.5 var(--mono); padding: 2px 14px 12px; flex: 1; color: var(--ink2); }
+.console pre .now { color: var(--ink); font-weight: 600; }
+.console pre .none { color: var(--muted); font-style: italic; font-family: var(--sans); }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 55vh auto; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  .code pre { max-height: 40vh; }
+  .hud { min-width: 0; font-size: 12px; }
+}
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<header>
+  <h1>mBot2 Simulator</h1>
+  <span class="run" id="runName">no run yet</span>
+  <span class="spacer"></span>
+  <label class="live" title="When you run your program again, play the new run here automatically">
+    <span class="dot" id="liveDot"></span>
+    <input type="checkbox" id="autoplay" checked> Play new runs
+  </label>
+  <button class="iconbtn" id="theme" title="Light or dark">◐</button>
+</header>
+
+<main>
+  <section class="stage">
+    <div id="scene">
+      <div class="overlay cams" role="group" aria-label="Camera">
+        <button data-cam="overview" aria-pressed="true">Overview</button>
+        <button data-cam="follow" aria-pressed="false">Follow</button>
+        <button data-cam="top" aria-pressed="false">Top</button>
+      </div>
+      <div class="overlay hud" aria-label="Robot sensors">
+        <div class="row"><span class="lbl">Ultrasonic</span><b id="hudUs">–</b></div>
+        <div class="row"><span class="lbl">Line sensor</span><span class="probes" id="hudLine"><i></i><i></i><i></i><i></i></span></div>
+        <div class="row"><span class="lbl">Lights</span><span class="leds" id="hudLeds"><i></i><i></i><i></i><i></i><i></i></span></div>
+        <div class="row"><span class="lbl">Robot time</span><b id="hudTime">0.0 s</b></div>
+        <div class="row"><span class="lbl">Distance driven</span><b id="hudDist">0 cm</b></div>
+      </div>
+      <div class="empty" id="empty"><div><b>Waiting for your program</b>Press the green ▶ next to <code>main</code> in IntelliJ. Your robot will drive here.</div></div>
+    </div>
+    <div class="controls">
+      <button id="first" title="Back to the start (Home)">⏮</button>
+      <button id="back" title="One step back (←)">◀</button>
+      <button id="play" class="play" title="Play or pause (space)">▶</button>
+      <button id="fwd" title="One step forward (→)">▶|</button>
+      <button id="last" title="Jump to the end (End)">⏭</button>
+      <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Step">
+      <select id="speed" aria-label="Speed">
+        <option value="0.5">0.5×</option><option value="1" selected>1×</option>
+        <option value="2">2×</option><option value="4">4×</option><option value="10">10×</option>
+      </select>
+      <span class="step" id="stepLabel">step 0 / 0</span>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>What's happening</h2>
+      <div class="say" id="say"><p class="extra">Nothing yet.</p></div>
+    </div>
+    <div class="card code">
+      <h2>Your code <span class="tabs" id="tabs"></span></h2>
+      <pre id="code"></pre>
+    </div>
+    <div class="card console">
+      <h2>Printed output</h2>
+      <pre id="out"><span class="none">Nothing printed yet.</span></pre>
+    </div>
+  </aside>
+</main>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---------------------------------------------------------------- theme
+const savedTheme = (() => { try { return localStorage.getItem('mbot-theme'); } catch { return null; } })();
+if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+$('theme').onclick = () => {
+  const dark = document.documentElement.dataset.theme === 'dark' ||
+    (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('mbot-theme', document.documentElement.dataset.theme); } catch {}
+  if (trace) buildWorld(trace); else applySceneColors();
+};
+
+// ---------------------------------------------------------------- scene
+// Sim coordinates are cm: x right, y away from you, heading 0 = +x, left turns positive.
+// three.js: X = x, Z = -y, Y is up. Heading h maps to rotation.y = h in radians.
+const host = $('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+host.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 1, 5000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.8);
+sun.position.set(-150, 300, 200);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.6;
+scene.add(sun, sun.target);
+
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+const toThree = (x, y, z = 0) => new THREE.Vector3(x, z, -y);
+
+function applySceneColors() {
+  scene.background = new THREE.Color(css('--page'));
+}
+applySceneColors();
+
+function resize() {
+  const w = host.clientWidth, h = host.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(h, 1);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host);
+
+// ---------------------------------------------------------------- the mBot2
+function makeRobot() {
+  const g = new THREE.Group();
+  const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.1, ...extra });
+  const add = (mesh, x, y, z) => { mesh.position.set(x, y, z); mesh.castShadow = true; g.add(mesh); return mesh; };
+  // Robot's local frame: +X is forward, +Z is the robot's right, Y up. (three's +Z = sim -y.)
+  add(new THREE.Mesh(new THREE.BoxGeometry(15, 4.5, 11), mat(0x2f7fd6, { metalness: 0.35, roughness: 0.4 })), 0, 4, 0);
+  add(new THREE.Mesh(new THREE.BoxGeometry(11, 4, 9.5), mat(0x3a3f45, { transparent: true, opacity: 0.85 })), -1, 8.2, 0);
+  // CyberPi screen on top
+  const screenCanvas = document.createElement('canvas');
+  screenCanvas.width = 256; screenCanvas.height = 160;
+  const screenTex = new THREE.CanvasTexture(screenCanvas);
+  screenTex.colorSpace = THREE.SRGBColorSpace;
+  const screen = add(new THREE.Mesh(new THREE.PlaneGeometry(6, 3.8), new THREE.MeshBasicMaterial({ map: screenTex })), -1, 10.25, 0);
+  screen.rotation.x = -Math.PI / 2;
+  screen.rotation.z = -Math.PI / 2;
+  // Wheels on the axle through the centre (the sim turns about this point)
+  for (const side of [-1, 1]) {
+    const w = add(new THREE.Mesh(new THREE.CylinderGeometry(3.25, 3.25, 2.4, 28), mat(0x1c1c1e, { roughness: 0.9 })), 0, 3.25, side * 6.9);
+    w.rotation.x = Math.PI / 2;
+    const hub = add(new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 2.5, 16), mat(0x2f7fd6)), 0, 3.25, side * 6.95);
+    hub.rotation.x = Math.PI / 2;
+  }
+  // Ultrasonic "eyes"
+  add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.6, 8), mat(0x16181b)), 7.4, 7.6, 0);
+  for (const side of [-1, 1]) {
+    const eye = add(new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 1.2, 24), mat(0x2b2f33)), 8.9, 7.6, side * 2.1);
+    eye.rotation.z = Math.PI / 2;
+    const ring = add(new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.32, 10, 28), mat(0x49b6ff, { emissive: 0x0d4d80 })), 9.5, 7.6, side * 2.1);
+    ring.rotation.y = Math.PI / 2;
+  }
+  // Smile
+  const smile = add(new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.22, 8, 20, Math.PI), mat(0x101012)), 7.55, 4.6, 0);
+  smile.rotation.y = Math.PI / 2;
+  smile.rotation.z = Math.PI;
+  // Five CyberPi lights along the front edge of the top
+  const leds = [];
+  for (let i = 0; i < 5; i++) {
+    leds.push(add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), new THREE.MeshStandardMaterial({ color: 0x555555, emissive: 0x000000 })), 4.2, 10.25, (i - 2) * 1.7));
+  }
+  // Line probes underneath (only visible from low angles, mostly a marker)
+  g.userData = { screenCanvas, screenTex, leds };
+  return g;
+}
+const robot = makeRobot();
+scene.add(robot);
+
+function drawScreen(text) {
+  const { screenCanvas: c, screenTex: t } = robot.userData;
+  const x = c.getContext('2d');
+  x.fillStyle = '#05070a'; x.fillRect(0, 0, c.width, c.height);
+  x.fillStyle = '#e9f2ff'; x.font = 'bold 30px ui-monospace, Menlo, monospace'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  const words = String(text ?? '').slice(0, 60);
+  const lines = []; let cur = '';
+  for (const w of words.split(' ')) { if ((cur + ' ' + w).trim().length > 12) { lines.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); }
+  lines.push(cur);
+  const shown = lines.filter(Boolean).slice(0, 3);
+  shown.forEach((l, i) => x.fillText(l, c.width / 2, c.height / 2 + (i - (shown.length - 1) / 2) * 36));
+  t.needsUpdate = true;
+}
+drawScreen('Hello mBot2');
+
+// Sensor visuals
+const beamMat = new THREE.MeshBasicMaterial({ color: 0x49b6ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
+const beam = new THREE.Mesh(new THREE.BufferGeometry(), beamMat);
+beam.visible = false;
+scene.add(beam);
+const hitDot = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 12), new THREE.MeshBasicMaterial({ color: 0xe0443a }));
+hitDot.visible = false;
+scene.add(hitDot);
+const probeDots = [];
+for (let i = 0; i < 4; i++) {
+  const d = new THREE.Mesh(new THREE.CircleGeometry(1.1, 16), new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.9 }));
+  d.rotation.x = -Math.PI / 2; d.visible = false; scene.add(d); probeDots.push(d);
+}
+const bumpRing = new THREE.Mesh(new THREE.RingGeometry(9, 11, 40), new THREE.MeshBasicMaterial({ color: 0xe0443a, transparent: true, opacity: 0.0, side: THREE.DoubleSide }));
+bumpRing.rotation.x = -Math.PI / 2;
+scene.add(bumpRing);
+
+// Trail
+const trailGeo = new THREE.BufferGeometry();
+const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x1f6fd1 }));
+scene.add(trail);
+
+// ---------------------------------------------------------------- world
+let roomSize = [240, 240];
+function buildWorld(t) {
+  applySceneColors();
+  worldGroup.clear();
+  const w = t.world, [W, H] = w.size;
+  roomSize = [W, H];
+  const floorMat = new THREE.MeshStandardMaterial({ color: css('--floor'), roughness: 0.95 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, H), floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.position.set(W / 2, 0, -H / 2); floor.receiveShadow = true;
+  worldGroup.add(floor);
+  // 10 cm grid, darker every 50 cm
+  const pts = [], major = [];
+  for (let x = 0; x <= W + 0.01; x += 10) (x % 50 === 0 ? major : pts).push(x, 0.05, 0, x, 0.05, -H);
+  for (let y = 0; y <= H + 0.01; y += 10) (y % 50 === 0 ? major : pts).push(0, 0.05, -y, W, 0.05, -y);
+  const gridLines = (arr, op) => {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+    return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: css('--grid'), transparent: true, opacity: op }));
+  };
+  worldGroup.add(gridLines(pts, 0.55), gridLines(major, 1));
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: css('--wall'), roughness: 0.8 });
+  const box = (x, y, bw, bh, height, m) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(bw, height, bh), m);
+    mesh.position.set(x + bw / 2, height / 2, -(y + bh / 2));
+    mesh.castShadow = true; mesh.receiveShadow = true; worldGroup.add(mesh);
+  };
+  const B = 5;
+  const edgeMat = new THREE.MeshStandardMaterial({ color: css('--wall'), roughness: 0.8, transparent: true, opacity: 0.55 });
+  box(-B, -B, W + 2 * B, B, 10, edgeMat); box(-B, H, W + 2 * B, B, 10, edgeMat);
+  box(-B, 0, B, H, 10, edgeMat); box(W, 0, B, H, 10, edgeMat);
+  for (const wl of (w.walls || [])) box(wl.x, wl.y, wl.w, wl.h, 15, wallMat);
+
+  const tapeMat = new THREE.MeshStandardMaterial({ color: css('--tape'), roughness: 0.6 });
+  for (const tp of (w.tape || [])) {
+    const p = tp.points, n = p.length, width = tp.width ?? 2;
+    for (let i = 0; i < (tp.closed ? n : n - 1); i++) {
+      const a = p[i], b = p[(i + 1) % n];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) + width;
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(len, 0.2, width), tapeMat);
+      seg.position.set((a[0] + b[0]) / 2, 0.12, -(a[1] + b[1]) / 2);
+      seg.rotation.y = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      seg.receiveShadow = true; worldGroup.add(seg);
+    }
+  }
+  for (const z of (w.zones || [])) {
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(z.w, z.h), new THREE.MeshBasicMaterial({ color: z.color || 0x1f9d55, transparent: true, opacity: 0.16, depthWrite: false }));
+    plane.rotation.x = -Math.PI / 2; plane.position.set(z.x + z.w / 2, 0.08, -(z.y + z.h / 2));
+    worldGroup.add(plane);
+    if (z.label) worldGroup.add(label(z.label, z.x + z.w / 2, z.y + z.h / 2));
+  }
+  // start marker
+  const s = w.start;
+  const start = new THREE.Mesh(new THREE.RingGeometry(9.5, 10.5, 40), new THREE.MeshBasicMaterial({ color: css('--muted'), transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+  start.rotation.x = -Math.PI / 2; start.position.copy(toThree(s.x, s.y, 0.07));
+  worldGroup.add(start);
+
+  sun.position.set(W / 2 - 150, 320, -H / 2 + 200);
+  sun.target.position.set(W / 2, 0, -H / 2);
+  const ext = Math.max(W, H);
+  Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 1200 });
+  sun.shadow.camera.updateProjectionMatrix();
+  trail.material.color.set(css('--accent'));
+}
+
+function label(text, x, y) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+  const g = c.getContext('2d');
+  g.font = 'bold 72px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = 'rgba(24,138,62,0.85)'; g.fillText(text, 128, 64);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(36, 18), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.1, -y);
+  return m;
+}
+
+// ---------------------------------------------------------------- cameras
+let camMode = 'overview';
+function setCam(mode, snap = true) {
+  camMode = mode;
+  document.querySelectorAll('.cams button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cam === mode)));
+  const [W, H] = roomSize, cx = W / 2, cz = -H / 2, ext = Math.max(W, H);
+  controls.enabled = mode !== 'follow';
+  if (!snap) return;
+  if (mode === 'overview') {
+    camera.position.set(cx - ext * 0.15, ext * 0.85, cz + ext * 1.05);
+    controls.target.set(cx, 0, cz);
+  } else if (mode === 'top') {
+    camera.position.set(cx, ext * 1.35, cz + 0.01);
+    controls.target.set(cx, 0, cz);
+  }
+  controls.update();
+}
+document.querySelectorAll('.cams button').forEach(b => b.onclick = () => setCam(b.dataset.cam));
+
+// ---------------------------------------------------------------- the run
+let trace = null, frames = [], cur = 0, frac = 1, playing = false, lastId = null;
+let pre = null;          // per-frame precomputed state
+let fileShown = null;
+
+function prepare(t) {
+  const n = t.frames.length;
+  const before = [], leds = [], screen = [], dist = [], printed = [], trailIdx = [], counts = [];
+  const trailPts = [];
+  let pose = [t.world.start.x, t.world.start.y, t.world.start.heading ?? 90];
+  let L = [[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]], scr = 'Hello mBot2', d = 0, out = [];
+  const seen = new Map();
+  trailPts.push(pose[0], pose[1]);
+  for (let i = 0; i < n; i++) {
+    const f = t.frames[i];
+    before.push(pose);
+    if (f.p) {
+      for (let k = 1; k < f.p.length; k++) {
+        d += Math.hypot(f.p[k][0] - f.p[k - 1][0], f.p[k][1] - f.p[k - 1][1]);
+        trailPts.push(f.p[k][0], f.p[k][1]);
+      }
+    }
+    trailIdx.push(trailPts.length / 2);
+    if (f.led) { L = L.map(a => a.slice()); L[f.led[0] - 1] = [f.led[1], f.led[2], f.led[3]]; }
+    if (f.k === 'print') { scr = f.out; out = out.concat([[i, f.out]]); }
+    if (f.l != null) { const key = f.f + ':' + f.l; seen.set(key, (seen.get(key) || 0) + 1); counts.push(seen.get(key)); } else counts.push(0);
+    leds.push(L); screen.push(scr); dist.push(d); printed.push(out.length);
+    if (f.pose) pose = f.pose;
+  }
+  // Display time per step. Tight loops (many quick calls on the same line) play in robot time;
+  // a single quick call holds long enough to read.
+  const dur = t.frames.map((f, i) => {
+    const robot = Math.max(0, (f.t1 ?? 0) - (f.t0 ?? 0));
+    const prev = t.frames[i - 1], next = t.frames[i + 1];
+    const dense = (prev && prev.l === f.l && prev.f === f.f) || (next && next.l === f.l && next.f === f.f);
+    const gap = prev ? Math.max(0, (f.t0 ?? 0) - (prev.t1 ?? 0)) : 0;
+    return Math.max(robot, dense ? 0.06 : (f.k === 'start' || f.k === 'end' ? 0.5 : 0.7)) + Math.min(gap, 2);
+  });
+  const allPrints = t.frames.map((f, i) => f.k === 'print' ? [i, f.out] : null).filter(Boolean);
+  return { before, leds, screen, dist, printed, trailIdx, counts, trailPts, dur, allPrints };
+}
+
+function load(t) {
+  trace = t; frames = t.frames; pre = prepare(t);
+  $('empty').style.display = 'none';
+  $('runName').textContent = `${t.main}.java · ${t.world.title ?? t.worldName} · ${new Date(t.created).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`;
+  document.title = `${t.main} · mBot2 Simulator`;
+  buildWorld(t);
+  const pos = new Float32Array(pre.trailPts.length / 2 * 3);
+  for (let i = 0; i < pre.trailPts.length / 2; i++) { pos[i * 3] = pre.trailPts[i * 2]; pos[i * 3 + 1] = 0.25; pos[i * 3 + 2] = -pre.trailPts[i * 2 + 1]; }
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  $('scrub').max = Math.max(0, frames.length - 1);
+  const files = Object.keys(t.sources || {});
+  const firstFile = frames.find(f => f.f)?.f;
+  fileShown = files.includes(firstFile) ? firstFile : files[0] ?? null;
+  renderTabs(files);
+  renderCode();
+  setCam(camMode === 'follow' ? 'follow' : camMode);
+  seek(0, 0);
+}
+
+// ---------------------------------------------------------------- playback
+function seek(i, f = 1) {
+  cur = Math.max(0, Math.min(frames.length - 1, i)); frac = f;
+  showState();
+}
+function poseAt(i, fr) {
+  const f = frames[i];
+  if (!f) return null;
+  const p = f.p;
+  if (!p || p.length < 2) return fr >= 1 && f.pose ? f.pose : pre.before[i];
+  // walk the polyline by arc length (turns by angle) so motion is even
+  const seg = [];
+  let total = 0;
+  for (let k = 1; k < p.length; k++) {
+    const len = Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]) + Math.abs(p[k][2] - p[k - 1][2]) * 0.15;
+    seg.push(len); total += len;
+  }
+  if (total === 0) return p[p.length - 1];
+  let want = total * Math.max(0, Math.min(1, fr));
+  for (let k = 0; k < seg.length; k++) {
+    if (want <= seg[k] || k === seg.length - 1) {
+      const u = seg[k] === 0 ? 1 : Math.min(1, want / seg[k]), a = p[k], b = p[k + 1];
+      return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+    }
+    want -= seg[k];
+  }
+  return p[p.length - 1];
+}
+
+function showState() {
+  if (!trace) return;
+  const f = frames[cur];
+  const pose = poseAt(cur, frac);
+  robot.position.copy(toThree(pose[0], pose[1], 0));
+  robot.rotation.y = pose[2] * Math.PI / 180;
+
+  // trail up to here
+  const startIdx = cur > 0 ? pre.trailIdx[cur - 1] : 1;
+  const endIdx = pre.trailIdx[cur];
+  const partial = Math.round(startIdx + (endIdx - startIdx) * Math.min(1, frac));
+  trailGeo.setDrawRange(0, Math.max(1, partial));
+
+  // lights and screen as of this step
+  const L = pre.leds[cur];
+  robot.userData.leds.forEach((m, k) => {
+    const [r, g, b] = L[k], on = r + g + b > 0;
+    m.material.color.setRGB(on ? r / 255 : 0.33, on ? g / 255 : 0.33, on ? b / 255 : 0.33);
+    m.material.emissive.setRGB(r / 255 * 0.9, g / 255 * 0.9, b / 255 * 0.9);
+  });
+  document.querySelectorAll('#hudLeds i').forEach((el, k) => {
+    const [r, g, b] = L[k]; el.style.background = r + g + b > 0 ? `rgb(${r},${g},${b})` : '';
+  });
+  if (showState.lastScreen !== pre.screen[cur]) { drawScreen(pre.screen[cur]); showState.lastScreen = pre.screen[cur]; }
+
+  // sensors: show the beam / probes only on the step that read them
+  const isUs = f.k === 'read' && !f.line, isLine = f.k === 'read' && f.line;
+  beam.visible = hitDot.visible = false;
+  probeDots.forEach(d => d.visible = false);
+  if (isUs && frac >= 0.999) showBeam(f, pose);
+  if (isLine && frac >= 0.999) showProbes(f, pose);
+  const lastUs = lastValue(cur, fr => fr.k === 'read' && !fr.line);
+  $('hudUs').textContent = lastUs == null ? '–' : `${lastUs.v.toFixed(1)} cm`;
+  const lastLine = lastValue(cur, fr => fr.k === 'read' && fr.line);
+  document.querySelectorAll('#hudLine i').forEach((el, k) => el.classList.toggle('on', !!lastLine && ((lastLine.v >> (3 - k)) & 1) === 1));
+  $('hudTime').textContent = `${((f.t0 ?? 0) + ((f.t1 ?? 0) - (f.t0 ?? 0)) * frac).toFixed(1)} s`;
+  const d0 = cur > 0 ? pre.dist[cur - 1] : 0;
+  $('hudDist').textContent = `${Math.round(d0 + (pre.dist[cur] - d0) * frac)} cm`;
+
+  bumpRing.material.opacity = f.bump && frac >= 0.999 ? 0.85 : 0;
+  bumpRing.position.copy(toThree(pose[0], pose[1], 0.3));
+
+  $('scrub').value = cur;
+  $('stepLabel').textContent = `step ${cur + 1} / ${frames.length}`;
+  if (showState.lastFrame !== cur) { showState.lastFrame = cur; renderSay(); highlightCode(); renderOut(); }
+}
+
+function lastValue(i, test) {
+  for (let k = i; k >= 0 && k > i - 4000; k--) if (test(frames[k])) return frames[k];
+  return null;
+}
+
+function showBeam(f, pose) {
+  const r = trace.robot, h = pose[2] * Math.PI / 180;
+  const sx = pose[0] + r.usOffset * Math.cos(h), sy = pose[1] + r.usOffset * Math.sin(h);
+  const len = Math.min(f.v, r.usMax), half = r.usHalfAngle * Math.PI / 180, steps = 12;
+  const verts = [];
+  for (let k = 0; k < steps; k++) {
+    const a1 = h - half + (2 * half) * k / steps, a2 = h - half + (2 * half) * (k + 1) / steps;
+    verts.push(sx, 7.6, -sy, sx + len * Math.cos(a1), 7.6, -(sy + len * Math.sin(a1)), sx + len * Math.cos(a2), 7.6, -(sy + len * Math.sin(a2)));
+  }
+  beam.geometry.dispose();
+  beam.geometry = new THREE.BufferGeometry();
+  beam.geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  beam.visible = true;
+  if (f.hit) { hitDot.position.copy(toThree(f.hit[0], f.hit[1], 7.6)); hitDot.visible = true; }
+}
+
+function showProbes(f, pose) {
+  const r = trace.robot, h = pose[2] * Math.PI / 180, c = Math.cos(h), s = Math.sin(h);
+  r.lineProbes.forEach((side, k) => {
+    const x = pose[0] + r.lineAhead * c - side * s, y = pose[1] + r.lineAhead * s + side * c;
+    const d = probeDots[k];
+    d.position.copy(toThree(x, y, 0.35));
+    d.material.color.set(((f.v >> (3 - k)) & 1) === 1 ? 0xff3b30 : 0x34c759);
+    d.visible = true;
+  });
+}
+
+// ---------------------------------------------------------------- side panel
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function renderSay() {
+  const f = frames[cur], el = $('say');
+  const src = f.f && trace.sources?.[f.f];
+  const lineText = src && f.l ? src.split('\n')[f.l - 1]?.trim() : null;
+  const n = pre.counts[cur];
+  let extra = '';
+  if (n > 1) extra = `This line has run <b>${n}</b> times so far.`;
+  if (f.k === 'read') extra = `<span>Returned <span class="value">${esc(f.v)}</span> to your code.</span> ` + extra;
+  el.className = 'say' + (f.k === 'error' || f.bump ? ' bad' : '');
+  el.innerHTML = `
+    <div class="where">${f.l ? `<span class="lineno">${esc(f.f ?? '')} · line ${f.l}</span>` : ''}${lineText ? `<code>${esc(lineText)}</code>` : ''}</div>
+    <p>${esc(f.m ?? '')}</p>
+    ${extra ? `<div class="extra">${extra}</div>` : ''}`;
+}
+
+function renderTabs(files) {
+  const tabs = $('tabs');
+  tabs.innerHTML = files.length > 1 ? files.map(name => `<button data-file="${esc(name)}" aria-pressed="${name === fileShown}">${esc(name)}</button>`).join('') : (files[0] ? `<span style="font-family:var(--mono);font-size:12px;color:var(--ink2)">${esc(files[0])}</span>` : '');
+  tabs.querySelectorAll('button').forEach(b => b.onclick = () => { fileShown = b.dataset.file; renderTabs(files); renderCode(); highlightCode(); });
+}
+
+const KW = /\b(public|private|protected|static|final|void|class|new|return|if|else|for|while|do|switch|case|break|continue|int|double|boolean|char|long|String|true|false|null|this|import|package|default|try|catch|throw|var|enum|extends|implements|interface)\b/g;
+function highlight(line) {
+  // comments and strings first, then keywords and numbers in what is left
+  const out = []; let rest = line, m;
+  const re = /(\/\/.*$)|("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)')/;
+  while ((m = re.exec(rest))) {
+    out.push(['code', rest.slice(0, m.index)]);
+    out.push([m[1] ? 'com' : 'str', m[0]]);
+    rest = rest.slice(m.index + m[0].length);
+  }
+  out.push(['code', rest]);
+  return out.map(([k, s]) => k === 'code'
+    ? esc(s).replace(KW, '<span class="kw">$1</span>').replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="numl">$1</span>').replace(/(@\w+)/g, '<span class="kw">$1</span>')
+    : `<span class="${k}">${esc(s)}</span>`).join('');
+}
+
+function renderCode() {
+  const pre_ = $('code');
+  const src = fileShown && trace.sources?.[fileShown];
+  if (!src) { pre_.innerHTML = '<span style="padding:0 14px;color:var(--muted);font-family:var(--sans)">Your code was not found, so it can\'t be shown here.</span>'; return; }
+  pre_.innerHTML = src.replace(/\n$/, '').split('\n').map((l, i) =>
+    `<div class="ln" data-l="${i + 1}"><span class="n">${i + 1}</span><span class="cnt"></span><span>${highlight(l) || ' '}</span></div>`).join('');
+}
+
+function highlightCode() {
+  const f = frames[cur], box = $('code');
+  if (f.f && f.f !== fileShown && trace.sources?.[f.f]) { fileShown = f.f; renderTabs(Object.keys(trace.sources)); renderCode(); }
+  const counts = new Map();
+  for (let k = 0; k <= cur; k++) { const fr = frames[k]; if (fr.f === fileShown && fr.l) counts.set(fr.l, (counts.get(fr.l) || 0) + 1); }
+  box.querySelectorAll('.ln').forEach(el => {
+    const l = +el.dataset.l, c = counts.get(l) || 0;
+    el.classList.toggle('hit', c > 0);
+    el.classList.toggle('cur', f.f === fileShown && f.l === l && f.k !== 'error');
+    el.classList.toggle('err', f.f === fileShown && f.l === l && f.k === 'error');
+    el.querySelector('.cnt').textContent = c > 1 ? `×${c}` : '';
+  });
+  const curEl = box.querySelector('.ln.cur, .ln.err');
+  if (curEl) {
+    const top = curEl.offsetTop - box.offsetTop, h = box.clientHeight;
+    if (top < box.scrollTop + 20 || top > box.scrollTop + h - 40) box.scrollTop = top - h / 3;
+  }
+}
+
+function renderOut() {
+  const n = pre.printed[cur], el = $('out');
+  if (!pre.allPrints.length) { el.innerHTML = '<span class="none">Nothing printed yet. Try System.out.println("Hello!");</span>'; return; }
+  const lines = pre.allPrints.slice(0, n);
+  el.innerHTML = lines.length ? lines.map(([i, s]) => `<div class="${i === cur ? 'now' : ''}">${esc(s) || ' '}</div>`).join('') : '<span class="none">Nothing printed yet.</span>';
+  el.scrollTop = el.scrollHeight;
+}
+
+// ---------------------------------------------------------------- controls
+const playBtn = $('play');
+function setPlaying(p) { playing = p; playBtn.textContent = p ? '❚❚' : '▶'; }
+playBtn.onclick = () => { if (!trace) return; if (!playing && cur >= frames.length - 1 && frac >= 1) seek(0, 0); setPlaying(!playing); };
+$('first').onclick = () => { setPlaying(false); seek(0, 0); };
+$('last').onclick = () => { setPlaying(false); seek(frames.length - 1, 1); };
+$('back').onclick = () => { setPlaying(false); seek(frac < 1 ? cur : cur - 1, 1); };
+$('fwd').onclick = () => { setPlaying(false); seek(frac < 1 ? cur : cur + 1, 1); };
+$('scrub').oninput = e => { setPlaying(false); seek(+e.target.value, 1); };
+addEventListener('keydown', e => {
+  if (e.target.closest('input[type=checkbox], select')) return;
+  if (e.key === ' ') { e.preventDefault(); playBtn.onclick(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); $('fwd').onclick(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); $('back').onclick(); }
+  else if (e.key === 'Home') $('first').onclick();
+  else if (e.key === 'End') $('last').onclick();
+});
+
+// ---------------------------------------------------------------- loop
+let prevT = performance.now();
+const followPos = new THREE.Vector3(), followLook = new THREE.Vector3();
+function tick(now) {
+  const dt = Math.min(0.1, (now - prevT) / 1000); prevT = now;
+  if (playing && trace) {
+    let budget = dt * +$('speed').value;
+    while (budget > 0 && playing) {
+      const d = pre.dur[cur], left = (1 - frac) * d;
+      if (budget < left) { frac += budget / d; budget = 0; }
+      else {
+        budget -= left;
+        if (cur >= frames.length - 1) { frac = 1; setPlaying(false); }
+        else { cur++; frac = 0; }
+      }
+    }
+    showState();
+  }
+  if (camMode === 'follow' && trace) {
+    const h = robot.rotation.y;
+    followPos.set(robot.position.x - Math.cos(h) * 55, 38, robot.position.z + Math.sin(h) * 55);
+    followLook.set(robot.position.x + Math.cos(h) * 30, 4, robot.position.z - Math.sin(h) * 30);
+    camera.position.lerp(followPos, 0.08);
+    controls.target.lerp(followLook, 0.12);
+    camera.lookAt(controls.target);
+  } else {
+    controls.update();
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+resize();
+setCam('overview');
+requestAnimationFrame(tick);
+
+// ---------------------------------------------------------------- watch for new runs
+async function poll() {
+  try {
+    const r = await fetch('api/latest/id', { cache: 'no-store' });
+    $('liveDot').classList.add('on');
+    const id = (await r.text()).trim();
+    if (id && id !== lastId && (lastId === null || $('autoplay').checked)) {
+      const t = await (await fetch('api/latest', { cache: 'no-store' })).json();
+      const first = lastId === null;
+      lastId = id;
+      load(t);
+      // #step=N&cam=top opens one moment of the run, paused (handy for pointing a student at it)
+      const q = new URLSearchParams(location.hash.slice(1));
+      if (first && q.has('cam')) setCam(q.get('cam'));
+      if (first && q.has('step')) seek(+q.get('step') - 1, 1);
+      else if (!first || Date.now() - new Date(t.created).getTime() < 15000) setPlaying(true);
+    }
+  } catch {
+    $('liveDot').classList.remove('on');
+  }
+  setTimeout(poll, 1000);
+}
+poll();
+
+window.mbot = { get trace() { return trace; }, seek, setCam };
+</script>
+</body>
+</html>

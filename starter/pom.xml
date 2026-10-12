@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>edu.desu.cis</groupId>
+  <artifactId>mbot-starter</artifactId>
+  <version>1.0</version>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <!-- Where the robot simulator is downloaded from. -->
+  <repositories>
+    <repository>
+      <id>mbot-sim</id>
+      <url>https://cd-csci-10447.github.io/mbot-sim/maven</url>
+    </repository>
+  </repositories>
+
+  <!-- The robot simulator. This is all your project needs. -->
+  <dependencies>
+    <dependency>
+      <groupId>edu.desu.cis</groupId>
+      <artifactId>mbot-sim</artifactId>
+      <version>0.1.0</version>
+    </dependency>
+  </dependencies>
+</project>
