@@ -19,13 +19,21 @@ so the switch to hardware is one setting in the annotation, not a rewrite:
   highlighted and run counts, plain-English narration, printed output, sensor beam and probes,
   bumps, crashes on the right line, runaway-loop stop.
 
-## v0.2 — arrays and methods (Parts 10–14)
+## v0.2 — composition and sensors as parts (Follow-Along Parts 21–22) · built
 
-- Worlds with **checkpoints** (an array of zones to visit in order). The viewer ticks each one
-  off; the end card says which were missed.
-- A `goal` flag on zones and a pass/fail end card ("Parked inside P ✓").
-- Headless runs for labs: `Session.headless(world)` already exists. Add a tiny JUnit helper so a
-  lab's given test can assert "ended inside the goal without bumping", run in CI.
+- `Chassis` (motors + CyberPi, no sensors); `MBot2 extends Chassis` (the assembled kit).
+- `Ultrasonic(Chassis)` and `LineSensor(Chassis)`: sensors exist only once plugged in, and the
+  3D robot only draws the ones that are.
+- Worlds with objects to detect (`box`, `can`), a `requires` list, labelled zones;
+  new built-ins `obstacles` and `line-track`.
+- The viewer shows the call chain ("called from Main.java line 11") and explains
+  `NullPointerException`s in plain English ("`eyes` is null: declared but never given an object").
+- `mbot.Testing` for lab JUnit tests: `start(world)`, `x()`, `y()`, `bumps()`, `insideZone()`,
+  `parts()`, `sensorReads()`.
+
+## v0.2.x — still to do from the old v0.2 plan
+
+- Checkpoint worlds (an ordered array of zones) with a pass/fail end card.
 
 ## v0.3 — objects (Parts 15–20)
 

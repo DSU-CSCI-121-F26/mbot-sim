@@ -1,9 +1,8 @@
 package mbot;
 
-import mbot.internal.Session;
-
 /**
- * Your mBot2 robot.
+ * Your mBot2 robot, fully put together: a {@link Chassis} that comes with its
+ * ultrasonic sensor and line sensor already plugged in.
  *
  * <p>Make one at the start of {@code main}, then tell it what to do:
  *
@@ -18,84 +17,12 @@ import mbot.internal.Session;
  *
  * <p>Distances are in centimetres (cm). Angles are in degrees.
  */
-public class MBot2 {
-
-    private final Session session;
+public class MBot2 extends Chassis {
 
     /** Turns on the robot. Make one of these at the start of {@code main}. */
     public MBot2() {
-        session = Session.start();
+        super(true);
     }
-
-    // ------------------------------------------------------------------ driving
-
-    /**
-     * Drives straight and waits until it gets there.
-     * A negative distance drives backward.
-     *
-     * @param distanceInCm how far to drive, in centimetres
-     */
-    public void straight(double distanceInCm) {
-        session.straight(distanceInCm);
-    }
-
-    /**
-     * Turns left on the spot and waits until the turn is done.
-     *
-     * @param degrees how far to turn, in degrees (90 is a quarter turn)
-     */
-    public void turnLeft(double degrees) {
-        session.turn(degrees, "turnLeft");
-    }
-
-    /**
-     * Turns right on the spot and waits until the turn is done.
-     *
-     * @param degrees how far to turn, in degrees (90 is a quarter turn)
-     */
-    public void turnRight(double degrees) {
-        session.turn(-degrees, "turnRight");
-    }
-
-    /**
-     * Starts both wheels driving forward and keeps going.
-     * This does <b>not</b> wait: your next line of code runs right away
-     * while the robot is still moving. Call {@link #stop()} to stop.
-     *
-     * @param speed wheel speed, from 0 to 200 (try 50)
-     */
-    public void forward(double speed) {
-        session.forward(speed, -1, "forward(" + Session.num(speed) + ")");
-    }
-
-    /**
-     * Drives forward for a number of seconds, then stops.
-     * This waits until the time is up.
-     *
-     * @param speed wheel speed, from 0 to 200 (try 50)
-     * @param seconds how long to drive
-     */
-    public void forward(double speed, double seconds) {
-        session.forward(speed, seconds, "forward(" + Session.num(speed) + ", " + Session.num(seconds) + ")");
-    }
-
-    /**
-     * Sets each wheel's power separately and keeps going. This does not wait.
-     * Equal powers drive straight. Different powers curve. Opposite powers spin.
-     *
-     * @param leftPower left wheel power, from -100 to 100
-     * @param rightPower right wheel power, from -100 to 100
-     */
-    public void setMotorPower(double leftPower, double rightPower) {
-        session.motorPower(leftPower, rightPower);
-    }
-
-    /** Stops both wheels. */
-    public void stop() {
-        session.stop();
-    }
-
-    // ------------------------------------------------------------------ sensors
 
     /**
      * Reads the ultrasonic sensor (the robot's two "eyes" on the front).
@@ -104,7 +31,7 @@ public class MBot2 {
      *         If nothing is in range, you get 300.
      */
     public double readUltrasonic() {
-        return session.readUltrasonic();
+        return session.readUltrasonic("readUltrasonic()");
     }
 
     /**
@@ -121,29 +48,6 @@ public class MBot2 {
      * @return a number from 0 to 15
      */
     public int readLineStatus() {
-        return session.readLineStatus();
-    }
-
-    // ------------------------------------------------------------------ lights
-
-    /**
-     * Turns on one of the five lights on the CyberPi.
-     *
-     * @param id which light, from 1 to 5
-     * @param red how much red, from 0 to 255
-     * @param green how much green, from 0 to 255
-     * @param blue how much blue, from 0 to 255
-     */
-    public void turnLedOn(int id, int red, int green, int blue) {
-        session.led(id, red, green, blue);
-    }
-
-    /**
-     * Turns off one of the five lights on the CyberPi.
-     *
-     * @param id which light, from 1 to 5
-     */
-    public void turnLedOff(int id) {
-        session.led(id, 0, 0, 0);
+        return session.readLineStatus("readLineStatus()");
     }
 }

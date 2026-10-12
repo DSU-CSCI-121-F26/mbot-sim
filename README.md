@@ -20,6 +20,9 @@ public class Main {
 }
 ```
 
+From Part 21 students build the robot from parts instead (`Chassis` + `Ultrasonic` +
+`LineSensor`) inside their own class, which is how the course teaches composition.
+
 That file is everything a student touches: one import, one annotation, `main`, and their code.
 No setup call, no save call, no server, no HTML, no JavaScript. The method names match the
 BRACE `MBot2` client, so the same code is meant to drive the real robot later
@@ -67,7 +70,7 @@ behind the first object the student makes.
 
 | Path | What |
 |---|---|
-| `src/main/java/mbot/MBot2.java`, `MBotLab.java` | The only two public classes students use |
+| `src/main/java/mbot/` | What students use: `MBotLab`, `MBot2`, `Chassis`, `Ultrasonic`, `LineSensor`; and `Testing` for lab tests |
 | `src/main/java/mbot/internal/` | Session, Sim, World, Sources, Tee, Viewer, ViewerMain, Specs, Json |
 | `src/main/resources/mbot/viewer/` | `index.html` and three.js r178 (`vendor/`, MIT) |
 | `src/main/resources/mbot/worlds/` | Built-in worlds ([docs/WORLDS.md](docs/WORLDS.md)) |
@@ -78,7 +81,7 @@ behind the first object the student makes.
 ## Build and try it
 
 ```bash
-mvn install                       # builds, runs the tests, installs edu.desu.cis:mbot-sim:0.1.0 locally
+mvn install                       # builds, runs the tests, installs edu.desu.cis:mbot-sim locally
 cd starter && mvn compile         # then open starter/ in IntelliJ and run Main
 ```
 
@@ -112,7 +115,7 @@ plain files on GitHub's servers. A lab's `pom.xml` needs these two blocks (see `
   <dependency>
     <groupId>edu.desu.cis</groupId>
     <artifactId>mbot-sim</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
   </dependency>
 </dependencies>
 ```

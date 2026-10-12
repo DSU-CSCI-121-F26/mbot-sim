@@ -126,6 +126,14 @@ public final class Sim {
                     hy = sy + dy * t;
                 }
             }
+            for (double[] c : world.cans) {
+                double t = rayCircle(sx, sy, dx, dy, c);
+                if (t < best) {
+                    best = t;
+                    hx = sx + dx * t;
+                    hy = sy + dy * t;
+                }
+            }
         }
         return new double[]{Math.max(Specs.US_MIN_CM, best), hx, hy};
     }
@@ -160,7 +168,22 @@ public final class Sim {
             double dx = cx - nx, dy = cy - ny;
             if (dx * dx + dy * dy < Specs.RADIUS_CM * Specs.RADIUS_CM) return true;
         }
+        for (double[] c : world.cans) {
+            double r = Specs.RADIUS_CM + c[2], dx = cx - c[0], dy = cy - c[1];
+            if (dx * dx + dy * dy < r * r) return true;
+        }
         return false;
+    }
+
+    /** Distance along the ray (dx, dy unit) to the circle {x, y, r}, or infinity. */
+    static double rayCircle(double ox, double oy, double dx, double dy, double[] c) {
+        double fx = ox - c[0], fy = oy - c[1];
+        double b = fx * dx + fy * dy, cc = fx * fx + fy * fy - c[2] * c[2];
+        double disc = b * b - cc;
+        if (disc < 0) return Double.POSITIVE_INFINITY;
+        double t = -b - Math.sqrt(disc);
+        if (t < 0) t = -b + Math.sqrt(disc);
+        return t < 0 ? Double.POSITIVE_INFINITY : t;
     }
 
     boolean onTape(double px, double py) {

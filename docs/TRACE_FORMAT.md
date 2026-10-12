@@ -27,8 +27,11 @@ One frame per call on `MBot2`, per printed line, plus `start`, `end` and `error`
 
 | Key | When | What |
 |---|---|---|
-| `k` | always | `start` `move` `turn` `drive` `stop` `read` `led` `print` `note` `end` `error` |
+| `k` | always | `start` `attach` `move` `turn` `drive` `stop` `read` `led` `print` `note` `end` `error` |
 | `f`, `l` | when known | Student file and line that made the call |
+| `via` | if called from another student method | `[[file, line], ...]` outward: who called the method that made the call (up to 3) |
+| `parts` | `start` | Sensors plugged in at the start: `[]` for a `Chassis`, `["ultrasonic","line"]` for an `MBot2` |
+| `part` | `attach` | The sensor just plugged in: `ultrasonic` or `line` |
 | `c` | always | The call as text, e.g. `straight(30)` |
 | `t0`, `t1` | always | Robot time at the start and end of the step |
 | `p` | if it moved | Poses `[[x, y, heading], ...]` passed through. Headings are unwrapped within a frame, so a 360° spin is 90 → 450 |

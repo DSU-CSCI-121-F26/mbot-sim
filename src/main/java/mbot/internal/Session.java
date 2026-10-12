@@ -12,8 +12,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * One run of a student's program: the "auto-configuration" behind {@code new MBot2()}.
@@ -31,6 +35,8 @@ public final class Session {
     final Sim sim;
     final Sources sources = new Sources();
     final List<Map<String, Object>> frames = new ArrayList<>();
+    final Set<String> parts = new LinkedHashSet<>();    // sensors plugged in: "ultrasonic", "line"
+    private int robots, bumps, reads;
     private final String mainName;
     private final boolean live;             // false in tests: no hooks, no files, no viewer
     private final PrintStream console;      // the real System.out, for the library's own messages
@@ -56,26 +62,72 @@ public final class Session {
         finish();
     }
 
-    /** Called by every {@code new MBot2()}. The first one starts the session; later ones share it. */
-    public static synchronized Session start() {
-        if (current != null) {
-            current.note("A second MBot2 was made. There is only one robot, so both names control it.");
-            return current;
+    /**
+     * Called by every {@code new Chassis()} / {@code new MBot2()}. The first one starts the session
+     * (or joins the one {@link #startTesting} made); later ones share it, since there is one robot.
+     */
+    public static synchronized Session start(String kind) {
+        if (current == null) {
+            Class<?> main = Sources.mainClass();
+            MBotLab lab = main == null ? null : main.getAnnotation(MBotLab.class);
+            String worldName = lab == null ? "open-room" : lab.world();
+            Session s = new Session(World.load(worldName), main == null ? "Main" : main.getSimpleName(), true);
+            current = s;
+            if (lab == null) {
+                s.console.println("[mbot] No @MBotLab on " + s.mainName + ", so using the \"open-room\" world.");
+            } else if (!lab.robot().isEmpty()) {
+                s.console.println("[mbot] Driving a real robot is not built yet. Using the simulator instead.");
+            }
+            s.goLive();
         }
-        Class<?> main = Sources.mainClass();
-        MBotLab lab = main == null ? null : main.getAnnotation(MBotLab.class);
-        String worldName = lab == null ? "open-room" : lab.world();
-        World world = World.load(worldName);
-        Session s = new Session(world, main == null ? "Main" : main.getSimpleName(), true);
-        current = s;
-        if (lab == null) {
-            s.console.println("[mbot] No @MBotLab on " + s.mainName + ", so using the \"open-room\" world.");
-        } else if (!lab.robot().isEmpty()) {
-            s.console.println("[mbot] Driving a real robot is not built yet. Using the simulator instead.");
+        current.robotMade(kind);
+        return current;
+    }
+
+    /** Begin a fresh headless run for a test. The next robot made joins it. */
+    public static synchronized void startTesting(String worldName) {
+        current = new Session(World.load(worldName), "Test", false);
+    }
+
+    /** The current run, for {@code mbot.Testing}. */
+    public static synchronized Session testing() {
+        if (current == null) throw new IllegalStateException("Call Testing.start(\"world\") first.");
+        return current;
+    }
+
+    private synchronized void robotMade(String kind) {
+        robots++;
+        if (robots > 1) {
+            note("A second robot was made (new " + kind + "()). There is only one robot, so both names control it.");
+            return;
         }
-        s.goLive();
-        s.add(s.frame("start", "new MBot2()"), "The robot turned on in the \"" + world.title() + "\" world.");
-        return s;
+        Map<String, Object> f = frame("start", "new " + kind + "()");
+        if (kind.equals("MBot2")) {
+            parts.add("ultrasonic");
+            parts.add("line");
+            f.put("parts", new ArrayList<>(parts));
+            add(f, "The robot turned on in the \"" + world.title() + "\" world. "
+                    + "It comes with its ultrasonic sensor and line sensor plugged in.");
+        } else {
+            f.put("parts", new ArrayList<>(parts));
+            add(f, "A bare chassis turned on in the \"" + world.title() + "\" world: wheels, motors and the CyberPi. "
+                    + "It has no sensors yet.");
+        }
+    }
+
+    /** A sensor object was made and plugged into the robot. */
+    public synchronized void attach(String part) {
+        String name = part.equals("ultrasonic") ? "Ultrasonic" : "LineSensor";
+        Map<String, Object> f = frame("attach", "new " + name + "(...)");
+        f.put("part", part);
+        if (!parts.add(part)) {
+            add(f, "The robot already has a" + (part.equals("ultrasonic") ? "n Ultrasonic" : " LineSensor")
+                    + ". Both objects read the same sensor.");
+            return;
+        }
+        add(f, part.equals("ultrasonic")
+                ? "Plugged an ultrasonic sensor into the front of the robot. Now it can tell how far away things are."
+                : "Plugged a line sensor into the bottom of the robot. Now it can see tape on the floor.");
     }
 
     private void goLive() {
@@ -155,8 +207,9 @@ public final class Session {
         add(f, was ? "Stopped both wheels." : "Stopped (the wheels were already stopped).");
     }
 
-    public synchronized double readUltrasonic() {
-        Map<String, Object> f = frame("read", "readUltrasonic()");
+    public synchronized double readUltrasonic(String call) {
+        Map<String, Object> f = frame("read", call);
+        reads++;
         double[] r = sim.ultrasonic();
         double cm = Math.round(r[0] * 10) / 10.0;
         f.put("v", cm);
@@ -166,8 +219,9 @@ public final class Session {
         return cm;
     }
 
-    public synchronized int readLineStatus() {
-        Map<String, Object> f = frame("read", "readLineStatus()");
+    public synchronized int readLineStatus(String call) {
+        Map<String, Object> f = frame("read", call);
+        reads++;
         int bits = sim.lineStatus();
         f.put("v", bits);
         f.put("line", true);
@@ -194,10 +248,16 @@ public final class Session {
     private Map<String, Object> frame(String kind, String call) {
         Map<String, Object> f = new LinkedHashMap<>();
         f.put("k", kind);
-        StackWalker.StackFrame at = sources.caller();
-        if (at != null) {
-            f.put("f", at.getFileName());
-            f.put("l", at.getLineNumber());
+        List<StackWalker.StackFrame> chain = sources.callers();
+        if (!chain.isEmpty()) {
+            f.put("f", chain.get(0).getFileName());
+            f.put("l", chain.get(0).getLineNumber());
+            // Who called the method that made this call: "called from Main.java line 11"
+            List<Object> via = new ArrayList<>();
+            for (int i = 1; i < chain.size(); i++) {
+                via.add(List.of(chain.get(i).getFileName(), chain.get(i).getLineNumber()));
+            }
+            if (!via.isEmpty()) f.put("via", via);
         }
         f.put("c", call);
         double wall = (System.nanoTime() - lastCallNanos) / 1e9;
@@ -227,6 +287,7 @@ public final class Session {
     }
 
     private void add(Map<String, Object> f, String message) {
+        if (Boolean.TRUE.equals(f.get("bump"))) bumps++;
         if (Boolean.TRUE.equals(f.get("bump")) && !message.contains("bump")) {
             message = "Bumped into a wall while driving, so the wheels stopped. Then: " + lower(message);
         }
@@ -266,8 +327,27 @@ public final class Session {
         f.put("t0", sim.time);
         f.put("c", e.getClass().getSimpleName());
         String msg = e.getMessage() == null ? "" : ": " + e.getMessage();
-        add(f, "The program crashed with " + e.getClass().getSimpleName() + msg
-                + ". The robot stopped. Check the red line, and the console in IntelliJ for details.");
+        String help = explain(e);
+        add(f, help != null
+                ? "The program crashed with a " + e.getClass().getSimpleName() + ", so the robot stopped. " + help
+                : "The program crashed with " + e.getClass().getSimpleName() + msg + ". The robot stopped. "
+                        + "Check the red line, and the console in IntelliJ for details.");
+    }
+
+    private static final Pattern NULL_NAME = Pattern.compile("because \"(?:this\\.)?([\\w.]+)\" is null");
+
+    /** Plain English for the crashes beginners hit most. */
+    static String explain(Throwable e) {
+        if (e instanceof NullPointerException && e.getMessage() != null) {
+            Matcher m = NULL_NAME.matcher(e.getMessage());
+            if (m.find() && !m.group(1).startsWith("<")) {
+                String name = m.group(1);
+                return "\"" + name + "\" is null: it was declared, but never given an object. "
+                        + "Is there a line like " + name + " = new ...; in the constructor, and does it run first?";
+            }
+            return "Something was null: a variable that was declared but never given an object with new.";
+        }
+        return null;
     }
 
     private void checkLimits() {
@@ -306,7 +386,16 @@ public final class Session {
     }
 
     private void save() {
-        if (frames.isEmpty() || !"error".equals(frames.get(frames.size() - 1).get("k"))) {
+        boolean crashed = !frames.isEmpty() && "error".equals(frames.get(frames.size() - 1).get("k"));
+        for (String need : world.requires) {
+            if (!parts.contains(need) && robots > 0) {
+                Map<String, Object> f = frame("note", "");
+                add(f, need.equals("ultrasonic")
+                        ? "This world has things to detect, but your robot never got an Ultrasonic. Plug one in: new Ultrasonic(base)"
+                        : "This world has tape to find, but your robot never got a LineSensor. Plug one in: new LineSensor(base)");
+            }
+        }
+        if (!crashed) {
             Map<String, Object> f = new LinkedHashMap<>();
             f.put("k", "end");
             f.put("t0", sim.time);
@@ -368,6 +457,23 @@ public final class Session {
         } catch (IOException ignored) {
             // old runs are a convenience
         }
+    }
+
+    // ------------------------------------------------------------------ for mbot.Testing
+
+    public synchronized double x() { return sim.x; }
+    public synchronized double y() { return sim.y; }
+    public synchronized double heading() { return sim.h; }
+    public synchronized int bumps() { return bumps; }
+    public synchronized int reads() { return reads; }
+    public synchronized double time() { return sim.time; }
+    public synchronized Set<String> parts() { return Set.copyOf(parts); }
+
+    public synchronized boolean insideZone(String label) {
+        for (double[] z : world.zones(label)) {
+            if (sim.x >= z[0] && sim.x <= z[0] + z[2] && sim.y >= z[1] && sim.y <= z[1] + z[3]) return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ helpers

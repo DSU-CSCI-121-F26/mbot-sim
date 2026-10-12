@@ -55,6 +55,29 @@ Every command starts with `bot.` (or whatever you named your robot).
 
 ---
 
+## Build your own robot from parts (Part 21 and later)
+
+`MBot2` is the whole robot, already put together. You can also build one from parts.
+A **`Chassis`** is just the wheels, motors and CyberPi. It has **no sensors** until you plug them in:
+
+```java
+Chassis base = new Chassis();               // make the robot first
+Ultrasonic eyes = new Ultrasonic(base);     // then plug sensors into it
+LineSensor floor = new LineSensor(base);
+```
+
+| Command | What it does |
+|---|---|
+| `eyes.distance()` | How far away the nearest thing in front is, in cm. Nothing in range gives 300. |
+| `floor.status()` | What the line sensor sees, from 0 to 15. 0 means no tape. |
+| `floor.seesTape()` | `true` if any of the four probes is over tape. |
+
+A `Chassis` drives with the same commands as `MBot2`: `straight`, `turnLeft`, `turnRight`, `forward`, `stop`, and the lights.
+
+In the 3D view, your robot only shows the sensors you plugged in.
+
+---
+
 ## Pick a room
 
 The `world` in `@MBotLab(world = "open-room")` is the room your robot starts in.
@@ -65,6 +88,8 @@ The `world` in `@MBotLab(world = "open-room")` is the room your robot starts in.
 | `"wall-ahead"` | A wall in front of you. Stop before you hit it. |
 | `"parking"` | A parking box made of tape. Find it with the line sensor. |
 | `"hallway"` | A hallway that turns right at the end. |
+| `"obstacles"` | Boxes and cans between you and the goal. Needs an `Ultrasonic`. |
+| `"line-track"` | A loop of tape to follow. Needs a `LineSensor`. |
 
 ---
 
@@ -76,4 +101,6 @@ The `world` in `@MBotLab(world = "open-room")` is the room your robot starts in.
 | No browser tab opened | Open **http://localhost:8121** yourself. |
 | The page says *Waiting for your program* | Run `Main` again. Check that **Play new runs** is ticked. |
 | The robot did not move but the code ran | Did you make the robot with `new MBot2()` before using it? |
+| *"eyes is null"* | You declared a sensor but never made it. Add `eyes = new Ultrasonic(base);` to the constructor. |
+| *"needs a robot to plug into"* | You made a sensor before the robot. Make the `Chassis` first. |
 | *"the simulator stopped it"* | A loop never ended. Look at the line with the biggest `×` number. |

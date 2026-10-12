@@ -25,7 +25,16 @@ final class Sources {
     static boolean isStudent(String className) {
         return !(className.startsWith("mbot.") || className.startsWith("java.") || className.startsWith("javax.")
                 || className.startsWith("jdk.") || className.startsWith("sun.") || className.startsWith("com.sun.")
-                || className.startsWith("com.intellij.") || className.startsWith("org.junit."));
+                || className.startsWith("com.intellij.") || className.startsWith("org.junit.")
+                || className.startsWith("org.apache.maven."));
+    }
+
+    /** Student frames right now, innermost first (at most 4): who called whom. */
+    java.util.List<StackWalker.StackFrame> callers() {
+        java.util.List<StackWalker.StackFrame> fs = WALKER.walk(s -> s.filter(fr -> isStudent(fr.getClassName()))
+                .limit(4).collect(java.util.stream.Collectors.toList()));
+        fs.forEach(this::remember);
+        return fs;
     }
 
     /** The innermost frame in student code right now, or null. */

@@ -64,6 +64,8 @@ main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-
 .hud { top: 12px; right: 12px; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--panel) 90%, transparent); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 190px; font-size: 13px; }
 .hud .row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .hud .lbl { color: var(--muted); }
+.hud .row.off { opacity: .45; }
+.hud .row.off b { font-family: var(--sans); font-weight: 400; font-style: italic; }
 .hud b { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
 .probes { display: flex; gap: 3px; }
 .probes i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); background: var(--soft); }
@@ -105,6 +107,9 @@ aside { border-left: 1px solid var(--line); background: var(--panel); display: f
 .code .ln .cnt { color: var(--accent); font-size: 10.5px; text-align: center; user-select: none; }
 .code .ln.hit { background: var(--soft); }
 .code .ln.cur { background: var(--hl); border-left-color: var(--hl-edge); }
+.code .ln.via { background: var(--accent-soft); border-left-color: var(--accent); }
+.say .via { margin-top: 6px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.say .via button { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-family: var(--mono); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
 .code .ln.err { background: var(--bad-soft); border-left-color: var(--bad); }
 .code .kw { color: #a626a4; } .code .str { color: #2f8a2f; } .code .com { color: var(--muted); font-style: italic; } .code .numl { color: #b06000; }
 :root[data-theme="dark"] .code .kw { color: #d38ee6; } :root[data-theme="dark"] .code .str { color: #8fd18f; } :root[data-theme="dark"] .code .numl { color: #f0a85a; }
@@ -147,8 +152,8 @@ aside { border-left: 1px solid var(--line); background: var(--panel); display: f
         <button data-cam="top" aria-pressed="false">Top</button>
       </div>
       <div class="overlay hud" aria-label="Robot sensors">
-        <div class="row"><span class="lbl">Ultrasonic</span><b id="hudUs">–</b></div>
-        <div class="row"><span class="lbl">Line sensor</span><span class="probes" id="hudLine"><i></i><i></i><i></i><i></i></span></div>
+        <div class="row" id="hudUsRow"><span class="lbl">Ultrasonic</span><b id="hudUs">–</b></div>
+        <div class="row" id="hudLineRow"><span class="lbl">Line sensor</span><span class="probes" id="hudLine"><i></i><i></i><i></i><i></i></span></div>
         <div class="row"><span class="lbl">Lights</span><span class="leds" id="hudLeds"><i></i><i></i><i></i><i></i><i></i></span></div>
         <div class="row"><span class="lbl">Robot time</span><b id="hudTime">0.0 s</b></div>
         <div class="row"><span class="lbl">Distance driven</span><b id="hudDist">0 cm</b></div>
@@ -267,14 +272,22 @@ function makeRobot() {
     const hub = add(new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 2.5, 16), mat(0x2f7fd6)), 0, 3.25, side * 6.95);
     hub.rotation.x = Math.PI / 2;
   }
-  // Ultrasonic "eyes"
-  add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.6, 8), mat(0x16181b)), 7.4, 7.6, 0);
+  // Ultrasonic "eyes": only drawn when one is plugged in
+  const eyes = new THREE.Group();
+  const addTo = (grp, mesh, x, y, z) => { mesh.position.set(x, y, z); mesh.castShadow = true; grp.add(mesh); return mesh; };
+  addTo(eyes, new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.6, 8), mat(0x16181b)), 7.4, 7.6, 0);
   for (const side of [-1, 1]) {
-    const eye = add(new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 1.2, 24), mat(0x2b2f33)), 8.9, 7.6, side * 2.1);
+    const eye = addTo(eyes, new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 1.2, 24), mat(0x2b2f33)), 8.9, 7.6, side * 2.1);
     eye.rotation.z = Math.PI / 2;
-    const ring = add(new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.32, 10, 28), mat(0x49b6ff, { emissive: 0x0d4d80 })), 9.5, 7.6, side * 2.1);
+    const ring = addTo(eyes, new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.32, 10, 28), mat(0x49b6ff, { emissive: 0x0d4d80 })), 9.5, 7.6, side * 2.1);
     ring.rotation.y = Math.PI / 2;
   }
+  g.add(eyes);
+  // Line sensor: a small board under the front with four probe lights
+  const lineMod = new THREE.Group();
+  addTo(lineMod, new THREE.Mesh(new THREE.BoxGeometry(3, 1, 9), mat(0x16181b)), 6.2, 1.2, 0);
+  for (let k = 0; k < 4; k++) addTo(lineMod, new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 1), mat(0xf2f2f2, { emissive: 0x777777 })), 7.8, 1.2, (k - 1.5) * 2.4);
+  g.add(lineMod);
   // Smile
   const smile = add(new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.22, 8, 20, Math.PI), mat(0x101012)), 7.55, 4.6, 0);
   smile.rotation.y = Math.PI / 2;
@@ -285,7 +298,7 @@ function makeRobot() {
     leds.push(add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), new THREE.MeshStandardMaterial({ color: 0x555555, emissive: 0x000000 })), 4.2, 10.25, (i - 2) * 1.7));
   }
   // Line probes underneath (only visible from low angles, mostly a marker)
-  g.userData = { screenCanvas, screenTex, leds };
+  g.userData = { screenCanvas, screenTex, leds, eyes, lineMod };
   return g;
 }
 const robot = makeRobot();
@@ -361,6 +374,16 @@ function buildWorld(t) {
   box(-B, 0, B, H, 10, edgeMat); box(W, 0, B, H, 10, edgeMat);
   for (const wl of (w.walls || [])) box(wl.x, wl.y, wl.w, wl.h, 15, wallMat);
 
+  for (const ob of (w.objects || [])) {
+    const m = new THREE.MeshStandardMaterial({ color: ob.color || '#c8823a', roughness: 0.6 });
+    if (ob.shape === 'can') {
+      const r = ob.r ?? 4, can = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 12, 28), m);
+      can.position.set(ob.x, 6, -ob.y); can.castShadow = true; can.receiveShadow = true; worldGroup.add(can);
+    } else {
+      box(ob.x, ob.y, ob.w, ob.h, 10, m);
+    }
+  }
+
   const tapeMat = new THREE.MeshStandardMaterial({ color: css('--tape'), roughness: 0.6 });
   for (const tp of (w.tape || [])) {
     const p = tp.points, n = p.length, width = tp.width ?? 2;
@@ -430,7 +453,8 @@ let fileShown = null;
 
 function prepare(t) {
   const n = t.frames.length;
-  const before = [], leds = [], screen = [], dist = [], printed = [], trailIdx = [], counts = [];
+  const before = [], leds = [], screen = [], dist = [], printed = [], trailIdx = [], counts = [], parts = [];
+  let P = [];
   const trailPts = [];
   let pose = [t.world.start.x, t.world.start.y, t.world.start.heading ?? 90];
   let L = [[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]], scr = 'Hello mBot2', d = 0, out = [];
@@ -449,7 +473,9 @@ function prepare(t) {
     if (f.led) { L = L.map(a => a.slice()); L[f.led[0] - 1] = [f.led[1], f.led[2], f.led[3]]; }
     if (f.k === 'print') { scr = f.out; out = out.concat([[i, f.out]]); }
     if (f.l != null) { const key = f.f + ':' + f.l; seen.set(key, (seen.get(key) || 0) + 1); counts.push(seen.get(key)); } else counts.push(0);
-    leds.push(L); screen.push(scr); dist.push(d); printed.push(out.length);
+    if (f.parts) P = f.parts.slice();
+    if (f.k === 'attach' && f.part && !P.includes(f.part)) P = P.concat([f.part]);
+    leds.push(L); screen.push(scr); dist.push(d); printed.push(out.length); parts.push(P);
     if (f.pose) pose = f.pose;
   }
   // Display time per step. Tight loops (many quick calls on the same line) play in robot time;
@@ -462,7 +488,7 @@ function prepare(t) {
     return Math.max(robot, dense ? 0.06 : (f.k === 'start' || f.k === 'end' ? 0.5 : 0.7)) + Math.min(gap, 2);
   });
   const allPrints = t.frames.map((f, i) => f.k === 'print' ? [i, f.out] : null).filter(Boolean);
-  return { before, leds, screen, dist, printed, trailIdx, counts, trailPts, dur, allPrints };
+  return { before, leds, screen, dist, printed, trailIdx, counts, trailPts, dur, allPrints, parts };
 }
 
 function load(t) {
@@ -538,6 +564,13 @@ function showState() {
   });
   if (showState.lastScreen !== pre.screen[cur]) { drawScreen(pre.screen[cur]); showState.lastScreen = pre.screen[cur]; }
 
+  // only the sensors that are plugged in exist on the robot
+  const P = pre.parts[cur], hasUs = P.includes('ultrasonic'), hasLine = P.includes('line');
+  robot.userData.eyes.visible = hasUs;
+  robot.userData.lineMod.visible = hasLine;
+  $('hudUsRow').classList.toggle('off', !hasUs);
+  $('hudLineRow').classList.toggle('off', !hasLine);
+
   // sensors: show the beam / probes only on the step that read them
   const isUs = f.k === 'read' && !f.line, isLine = f.k === 'read' && f.line;
   beam.visible = hitDot.visible = false;
@@ -545,7 +578,7 @@ function showState() {
   if (isUs && frac >= 0.999) showBeam(f, pose);
   if (isLine && frac >= 0.999) showProbes(f, pose);
   const lastUs = lastValue(cur, fr => fr.k === 'read' && !fr.line);
-  $('hudUs').textContent = lastUs == null ? '–' : `${lastUs.v.toFixed(1)} cm`;
+  $('hudUs').textContent = !hasUs ? 'not plugged in' : lastUs == null ? '–' : `${lastUs.v.toFixed(1)} cm`;
   const lastLine = lastValue(cur, fr => fr.k === 'read' && fr.line);
   document.querySelectorAll('#hudLine i').forEach((el, k) => el.classList.toggle('on', !!lastLine && ((lastLine.v >> (3 - k)) & 1) === 1));
   $('hudTime').textContent = `${((f.t0 ?? 0) + ((f.t1 ?? 0) - (f.t0 ?? 0)) * frac).toFixed(1)} s`;
@@ -606,8 +639,17 @@ function renderSay() {
   el.className = 'say' + (f.k === 'error' || f.bump ? ' bad' : '');
   el.innerHTML = `
     <div class="where">${f.l ? `<span class="lineno">${esc(f.f ?? '')} · line ${f.l}</span>` : ''}${lineText ? `<code>${esc(lineText)}</code>` : ''}</div>
+    ${(f.via || []).map(([vf, vl]) => {
+      const t = trace.sources?.[vf]?.split('\n')[vl - 1]?.trim();
+      return `<div class="via"><button data-file="${esc(vf)}" data-line="${vl}">↳ called from ${esc(vf)} · line ${vl}</button>${t ? ` <code>${esc(t)}</code>` : ''}</div>`;
+    }).join('')}
     <p>${esc(f.m ?? '')}</p>
     ${extra ? `<div class="extra">${extra}</div>` : ''}`;
+  el.querySelectorAll('.via button').forEach(b => b.onclick = () => {
+    fileShown = b.dataset.file; renderTabs(Object.keys(trace.sources)); renderCode(); highlightCode(false);
+    const ln = $('code').querySelector(`.ln[data-l="${b.dataset.line}"]`);
+    if (ln) { ln.classList.add('via'); $('code').scrollTop = ln.offsetTop - $('code').offsetTop - $('code').clientHeight / 3; }
+  });
 }
 
 function renderTabs(files) {
@@ -640,9 +682,9 @@ function renderCode() {
     `<div class="ln" data-l="${i + 1}"><span class="n">${i + 1}</span><span class="cnt"></span><span>${highlight(l) || ' '}</span></div>`).join('');
 }
 
-function highlightCode() {
+function highlightCode(follow = true) {
   const f = frames[cur], box = $('code');
-  if (f.f && f.f !== fileShown && trace.sources?.[f.f]) { fileShown = f.f; renderTabs(Object.keys(trace.sources)); renderCode(); }
+  if (follow && f.f && f.f !== fileShown && trace.sources?.[f.f]) { fileShown = f.f; renderTabs(Object.keys(trace.sources)); renderCode(); }
   const counts = new Map();
   for (let k = 0; k <= cur; k++) { const fr = frames[k]; if (fr.f === fileShown && fr.l) counts.set(fr.l, (counts.get(fr.l) || 0) + 1); }
   box.querySelectorAll('.ln').forEach(el => {
@@ -651,6 +693,7 @@ function highlightCode() {
     el.classList.toggle('cur', f.f === fileShown && f.l === l && f.k !== 'error');
     el.classList.toggle('err', f.f === fileShown && f.l === l && f.k === 'error');
     el.querySelector('.cnt').textContent = c > 1 ? `×${c}` : '';
+    el.classList.toggle('via', (f.via || []).some(([vf, vl]) => vf === fileShown && vl === l));
   });
   const curEl = box.querySelector('.ln.cur, .ln.err');
   if (curEl) {
