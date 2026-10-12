@@ -16,7 +16,7 @@
   -->
   <groupId>edu.desu.cis</groupId>
   <artifactId>mbot-sim</artifactId>
-  <version>0.2.0</version>
+  <version>0.1.0</version>
   <name>mbot-sim</name>
   <description>Write plain Java for the mBot2 and watch it drive in a 3D viewer.</description>
   <url>https://github.com/DSU-CSCI-121-F26/mbot-sim</url>

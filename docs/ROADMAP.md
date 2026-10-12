@@ -10,44 +10,41 @@ so the switch to hardware is one setting in the annotation, not a rewrite:
 @MBotLab(robot = "StingBot")        // later: the student's own robot, same code
 ```
 
-## v0.1 — loops and if (Follow-Along Parts 06–09) · built
+## 0.1.0 — the first release · built
 
-- `MBot2`: `straight`, `turnLeft/Right`, `forward` (open and timed), `setMotorPower`, `stop`,
-  `readUltrasonic`, `readLineStatus`, `turnLedOn/Off`.
-- Worlds: `open-room`, `wall-ahead`, `parking`, `hallway`.
-- Viewer: replay with play/step/scrub, three cameras, the student's code with the running line
-  highlighted and run counts, plain-English narration, printed output, sensor beam and probes,
-  bumps, crashes on the right line, runaway-loop stop.
+**Loops and if (Follow-Along Parts 06–09).** `MBot2`: `straight`, `turnLeft/Right`, `forward`
+(open and timed), `setMotorPower`, `stop`, `readUltrasonic`, `readLineStatus`, `turnLedOn/Off`.
+Viewer: replay with play/step/scrub, three cameras, the student's code with the running line
+highlighted and run counts, plain-English narration, printed output, sensor beams and probes,
+bumps, crashes on the right line, runaway-loop stop.
 
-## v0.2 — composition and sensors as parts (Follow-Along Parts 21–22) · built
+**Composition (Parts 21–22).** `Chassis` (motors + CyberPi, no sensors) with plug-in
+`Ultrasonic(Chassis)` and `LineSensor(Chassis)`; the 3D robot only draws what is plugged in.
+Worlds with objects (`box`, `can`), labelled zones and a `requires` list. The viewer shows the
+call chain ("called from Main.java line 11") and explains `NullPointerException`s.
+`mbot.Testing` for lab JUnit tests.
 
-- `Chassis` (motors + CyberPi, no sensors); `MBot2 extends Chassis` (the assembled kit).
-- `Ultrasonic(Chassis)` and `LineSensor(Chassis)`: sensors exist only once plugged in, and the
-  3D robot only draws the ones that are.
-- Worlds with objects to detect (`box`, `can`), a `requires` list, labelled zones;
-  new built-ins `obstacles` and `line-track`.
-- The viewer shows the call chain ("called from Main.java line 11") and explains
-  `NullPointerException`s in plain English ("`eyes` is null: declared but never given an object").
-- `mbot.Testing` for lab JUnit tests: `start(world)`, `x()`, `y()`, `bumps()`, `insideZone()`,
-  `parts()`, `sensorReads()`.
+**Inheritance (Parts 23–24).** `MBot2 extends Chassis`; students write `class Scout extends MBot2`,
+call `super()`, add the extra sensors their robot needs as fields, and override methods
+(`run()`, or `straight()` with `super.straight()`). Two extra sensors, **simulator-only**:
+`Scanner` (an ultrasonic on a servo: `scan()` returns a `double[]` of 7 distances, `look(angle)`)
+and `ColorSensor` (`color()` of the floor). The viewer draws a UML-style diagram of the
+student's class chain from their real code (fields, null sensor fields in red, overrides), and
+says where each call comes from ("straight() is inherited from Chassis", "super.straight()
+runs Chassis's version"). Worlds: `color-zones` (floor `patches`), `junctions`.
 
-## v0.2.x — still to do from the old v0.2 plan
+## Next
 
 - Checkpoint worlds (an ordered array of zones) with a pass/fail end card.
+- More than one robot in a run, so `MBot2[] fleet = { new Scout(), new Sweeper() }` can drive
+  together (polymorphism over an array).
 
-## v0.3 — objects (Parts 15–20)
-
-- Students write their own classes around `MBot2` (a `Driver`, a `Patrol`). The viewer already
-  shows every file that made a call, as tabs, and jumps to the file that is running.
-- Optional: draw the student's own fields (e.g. a `mode` String) in the HUD — needs a small,
-  explicit API so it is not magic. Decide with the class plan.
-
-## v0.4 — state machines (week of the FSM lecture)
+## State machines (week of the FSM lecture)
 
 - A `mode` readout and a timeline strip coloured by mode.
 - Ties to the existing Robocode `switch (mode)` upgrade and to the term project's `MazeRobot`.
 
-## v1.0 — the real robot
+## 1.0 — the real robot
 
 `@MBotLab(robot = "...")` switches `Session` from the simulator to a **BRACE backend** that
 speaks `stingsim/docs/PROTOCOL.md`: UDP discovery on 9998, TCP commands on 9990, telemetry on
@@ -59,6 +56,8 @@ speaks `stingsim/docs/PROTOCOL.md`: UDP discovery on 9998, TCP commands on 9990,
 - Carry over the protocol traps PROTOCOL.md records: the request uses `payload.robot` but the
   reply uses `payload.robotId`; discovery skips loopback, so a laptop with no network interface
   up never finds the robot; never pretty-print a command line.
+- `Scanner` and `ColorSensor` need new commands on the robot's CyberPi server (a servo command;
+  a quad-RGB color read) before they work on hardware.
 - Add an IP override (`@MBotLab(robot = "StingBot", ip = "...")`) so a classroom network that
   blocks broadcast still works.
 

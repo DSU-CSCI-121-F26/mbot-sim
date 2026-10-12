@@ -78,6 +78,40 @@ In the 3D view, your robot only shows the sensors you plugged in.
 
 ---
 
+## Make your own robot class (Part 23 and later)
+
+Write a class that **extends** `MBot2`. Your robot can do everything an `MBot2` can, and you
+add the extra sensors it needs as **fields**:
+
+```java
+public class Scout extends MBot2 {
+    private Scanner scanner;            // an extra sensor this robot needs
+
+    public Scout() {
+        super();                        // build the MBot2 part first
+        scanner = new Scanner(this);    // then mount the extra sensor
+    }
+
+    @Override
+    public void run() {                 // your robot's mission
+        straight(30);
+    }
+}
+```
+
+In `main`: `MBot2 bot = new Scout(); bot.run();`
+
+| Extra sensor | Command | What it does |
+|---|---|---|
+| `Scanner` | `scanner.scan()` | Looks 7 ways and gives back a `double[]` of distances, far left (index 0) to far right (index 6). Index 3 is straight ahead. |
+| | `scanner.look(45)` | Looks one way: positive is left, negative is right. |
+| `ColorSensor` | `eye.color()` | The floor color: `"white"`, `"black"`, `"red"`, `"green"`, `"blue"` or `"yellow"`. |
+
+The **Your robot** box in the viewer draws your class and the classes it extends. A sensor
+field you forgot to plug in shows up in red as `= null`.
+
+---
+
 ## Pick a room
 
 The `world` in `@MBotLab(world = "open-room")` is the room your robot starts in.
@@ -90,6 +124,8 @@ The `world` in `@MBotLab(world = "open-room")` is the room your robot starts in.
 | `"hallway"` | A hallway that turns right at the end. |
 | `"obstacles"` | Boxes and cans between you and the goal. Needs an `Ultrasonic`. |
 | `"line-track"` | A loop of tape to follow. Needs a `LineSensor`. |
+| `"color-zones"` | Colored stripes, then a red stop pad. Needs a `ColorSensor`. |
+| `"junctions"` | A corridor that turns right, then left. Needs a `Scanner`. |
 
 ---
 

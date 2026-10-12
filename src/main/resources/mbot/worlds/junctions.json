@@ -1,0 +1,14 @@
+{
+  "title": "Junctions",
+  "about": "A corridor that turns right, then left. Use a Scanner to find the open way at each turn.",
+  "size": [300, 300],
+  "start": {"x": 40, "y": 30, "heading": 90},
+  "requires": ["scanner"],
+  "walls": [
+    {"x": 80, "y": 0, "w": 220, "h": 120},
+    {"x": 0, "y": 190, "w": 200, "h": 110}
+  ],
+  "zones": [
+    {"x": 215, "y": 245, "w": 80, "h": 50, "label": "Goal"}
+  ]
+}

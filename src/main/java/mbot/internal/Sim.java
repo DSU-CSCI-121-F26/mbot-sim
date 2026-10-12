@@ -138,6 +138,41 @@ public final class Sim {
         return new double[]{Math.max(Specs.US_MIN_CM, best), hx, hy};
     }
 
+    /**
+     * An ultrasonic reading in any direction: relAngle degrees from the robot's heading
+     * (left positive), from a sensor mounted offsetCm ahead of the centre, with the given cone.
+     * Returns {distance, hitX, hitY}.
+     */
+    public double[] ultrasonicAt(double relAngle, double offsetCm, double halfAngle) {
+        double rad = Math.toRadians(h);
+        double sx = x + offsetCm * Math.cos(rad), sy = y + offsetCm * Math.sin(rad);
+        double best = Specs.US_MAX_CM, hx = Double.NaN, hy = Double.NaN;
+        for (double a = -halfAngle; a <= halfAngle + 1e-9; a += 1) {
+            double r = Math.toRadians(h + relAngle + a), dx = Math.cos(r), dy = Math.sin(r);
+            for (double[] b : world.boxes) {
+                double t = ray(sx, sy, dx, dy, b);
+                if (t < best) { best = t; hx = sx + dx * t; hy = sy + dy * t; }
+            }
+            for (double[] c : world.cans) {
+                double t = rayCircle(sx, sy, dx, dy, c);
+                if (t < best) { best = t; hx = sx + dx * t; hy = sy + dy * t; }
+            }
+        }
+        return new double[]{Math.max(Specs.US_MIN_CM, best), hx, hy};
+    }
+
+    /** Floor color under the front-centre of the robot: tape is black, then the topmost patch, else white. */
+    public String colorUnder() {
+        double rad = Math.toRadians(h);
+        double px = x + Specs.LINE_AHEAD_CM * Math.cos(rad), py = y + Specs.LINE_AHEAD_CM * Math.sin(rad);
+        if (onTape(px, py)) return "black";
+        for (int i = world.patches.size() - 1; i >= 0; i--) {
+            World.Patch p = world.patches.get(i);
+            if (px >= p.x() && px <= p.x() + p.w() && py >= p.y() && py <= p.y() + p.h()) return p.color();
+        }
+        return "white";
+    }
+
     /** Line sensor: bit 3 = far left probe ... bit 0 = far right probe. 1 = over tape. */
     public int lineStatus() {
         int bits = 0;

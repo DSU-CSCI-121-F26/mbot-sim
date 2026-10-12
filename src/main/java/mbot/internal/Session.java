@@ -37,6 +37,7 @@ public final class Session {
     final List<Map<String, Object>> frames = new ArrayList<>();
     final Set<String> parts = new LinkedHashSet<>();    // sensors plugged in: "ultrasonic", "line"
     private int robots, bumps, reads;
+    private Object robot;                                // the first robot made: its class is the student's design
     private final String mainName;
     private final boolean live;             // false in tests: no hooks, no files, no viewer
     private final PrintStream console;      // the real System.out, for the library's own messages
@@ -66,7 +67,7 @@ public final class Session {
      * Called by every {@code new Chassis()} / {@code new MBot2()}. The first one starts the session
      * (or joins the one {@link #startTesting} made); later ones share it, since there is one robot.
      */
-    public static synchronized Session start(String kind) {
+    public static synchronized Session start(Object robot) {
         if (current == null) {
             Class<?> main = Sources.mainClass();
             MBotLab lab = main == null ? null : main.getAnnotation(MBotLab.class);
@@ -80,7 +81,7 @@ public final class Session {
             }
             s.goLive();
         }
-        current.robotMade(kind);
+        current.robotMade(robot);
         return current;
     }
 
@@ -95,40 +96,66 @@ public final class Session {
         return current;
     }
 
-    private synchronized void robotMade(String kind) {
+    private synchronized void robotMade(Object made) {
         robots++;
+        String kind = made.getClass().getSimpleName();
         if (robots > 1) {
             note("A second robot was made (new " + kind + "()). There is only one robot, so both names control it.");
             return;
         }
+        robot = made;
         Map<String, Object> f = frame("start", "new " + kind + "()");
-        if (kind.equals("MBot2")) {
+        boolean kit = made instanceof mbot.MBot2;
+        if (kit) {
             parts.add("ultrasonic");
             parts.add("line");
-            f.put("parts", new ArrayList<>(parts));
-            add(f, "The robot turned on in the \"" + world.title() + "\" world. "
-                    + "It comes with its ultrasonic sensor and line sensor plugged in.");
-        } else {
-            f.put("parts", new ArrayList<>(parts));
-            add(f, "A bare chassis turned on in the \"" + world.title() + "\" world: wheels, motors and the CyberPi. "
-                    + "It has no sensors yet.");
         }
+        f.put("parts", new ArrayList<>(parts));
+        String where = " in the \"" + world.title() + "\" world.";
+        if (Sources.isStudent(made.getClass().getName())) {
+            // The student's own robot class: say what it inherits.
+            StringBuilder chain = new StringBuilder();
+            for (Class<?> c = made.getClass().getSuperclass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                chain.append(chain.length() == 0 ? "" : ", which is a ").append(c.getSimpleName());
+            }
+            add(f, "Your " + kind + " turned on" + where + " " + kind + " extends " + chain + ", so it can already "
+                    + "do everything they can" + (kit ? ", and it comes with the kit's ultrasonic and line sensors." : "."));
+        } else if (kit) {
+            add(f, "The robot turned on" + where + " It comes with its ultrasonic sensor and line sensor plugged in.");
+        } else {
+            add(f, "A bare chassis turned on" + where + " It has wheels, motors and the CyberPi, but no sensors yet.");
+        }
+    }
+
+    /** MBot2's own run() was called: nothing overrides it. */
+    public synchronized void emptyRun() {
+        Map<String, Object> f = frame("note", "run()");
+        add(f, robot != null && Sources.isStudent(robot.getClass().getName())
+                ? "run() was called, but " + robot.getClass().getSimpleName() + " does not override it, so MBot2's "
+                        + "empty run() ran and nothing happened. Write public void run() in your class."
+                : "MBot2's own run() does nothing. Write a class that extends MBot2 and override run().");
     }
 
     /** A sensor object was made and plugged into the robot. */
     public synchronized void attach(String part) {
-        String name = part.equals("ultrasonic") ? "Ultrasonic" : "LineSensor";
+        String name = PART_CLASS.get(part);
         Map<String, Object> f = frame("attach", "new " + name + "(...)");
         f.put("part", part);
         if (!parts.add(part)) {
-            add(f, "The robot already has a" + (part.equals("ultrasonic") ? "n Ultrasonic" : " LineSensor")
-                    + ". Both objects read the same sensor.");
+            add(f, "The robot already has a" + (name.startsWith("U") ? "n " : " ") + name
+                    + ". Both objects use the same one.");
             return;
         }
-        add(f, part.equals("ultrasonic")
-                ? "Plugged an ultrasonic sensor into the front of the robot. Now it can tell how far away things are."
-                : "Plugged a line sensor into the bottom of the robot. Now it can see tape on the floor.");
+        add(f, switch (part) {
+            case "ultrasonic" -> "Plugged an ultrasonic sensor into the front of the robot. Now it can tell how far away things are.";
+            case "line" -> "Plugged a line sensor into the bottom of the robot. Now it can see tape on the floor.";
+            case "scanner" -> "Mounted a scanner on top of the robot: an ultrasonic sensor on a servo, so it can look left and right.";
+            default -> "Plugged a color sensor into the bottom of the robot. Now it can tell what color the floor is.";
+        });
     }
+
+    static final Map<String, String> PART_CLASS = Map.of(
+            "ultrasonic", "Ultrasonic", "line", "LineSensor", "scanner", "Scanner", "color", "ColorSensor");
 
     private void goLive() {
         tee = new Tee(console, this::printed);
@@ -231,6 +258,56 @@ public final class Session {
         return bits;
     }
 
+    public synchronized double[] scan(int[] angles) {
+        Map<String, Object> f = frame("scan", "scan()");
+        reads++;
+        double[] out = new double[angles.length];
+        List<double[]> rays = new ArrayList<>();
+        for (int i = 0; i < angles.length; i++) {
+            double[] r = sim.ultrasonicAt(angles[i], Specs.SCANNER_OFFSET_CM, Specs.SCANNER_HALF_ANGLE_DEG);
+            out[i] = Math.round(r[0] * 10) / 10.0;
+            rays.add(new double[]{angles[i], out[i], r[1], r[2]});
+        }
+        sim.time += Specs.SCAN_STEP_S * angles.length;
+        f.put("rays", rays);
+        f.put("v", out);
+        int best = 0;
+        for (int i = 1; i < out.length; i++) if (out[i] > out[best]) best = i;
+        add(f, "Scanned " + angles.length + " directions, far left to far right. The most open way is "
+                + dirName(angles[best]) + " (" + num(out[best]) + " cm).");
+        return out;
+    }
+
+    public synchronized double look(int degrees) {
+        int d = Math.max(-90, Math.min(90, degrees));
+        Map<String, Object> f = frame("scan", "look(" + degrees + ")");
+        reads++;
+        double[] r = sim.ultrasonicAt(d, Specs.SCANNER_OFFSET_CM, Specs.SCANNER_HALF_ANGLE_DEG);
+        double cm = Math.round(r[0] * 10) / 10.0;
+        sim.time += Specs.SCAN_STEP_S;
+        f.put("rays", List.of(new double[]{d, cm, r[1], r[2]}));
+        f.put("v", cm);
+        add(f, (d != degrees ? "The scanner only turns from -90 to 90, so it looked at " + d + ". " : "")
+                + "Looked " + dirName(d) + ": " + num(cm) + " cm.");
+        return cm;
+    }
+
+    public synchronized String readColor() {
+        Map<String, Object> f = frame("read", "color()");
+        reads++;
+        String c = sim.colorUnder();
+        f.put("v", c);
+        f.put("color", c);
+        add(f, "Read the color sensor: the floor is " + c + ".");
+        return c;
+    }
+
+    static String dirName(int deg) {
+        if (deg == 0) return "straight ahead";
+        String side = deg > 0 ? "left" : "right";
+        return Math.abs(deg) == 90 ? "to the " + side : Math.abs(deg) + "° to the " + side;
+    }
+
     public synchronized void led(int id, int r, int g, int b) {
         Map<String, Object> f = frame("led", r == 0 && g == 0 && b == 0 ? "turnLedOff(" + id + ")"
                 : "turnLedOn(" + id + ", " + r + ", " + g + ", " + b + ")");
@@ -260,6 +337,8 @@ public final class Session {
             if (!via.isEmpty()) f.put("via", via);
         }
         f.put("c", call);
+        String how = origin(call, chain);
+        if (how != null) f.put("how", how);
         double wall = (System.nanoTime() - lastCallNanos) / 1e9;
         f.put("t0", sim.time);
         if (sim.moving()) {
@@ -272,6 +351,105 @@ public final class Session {
             sim.time += wall;               // a Thread.sleep, or a slow loop: let the replay pause too
         }
         return f;
+    }
+
+    /**
+     * For a student's own robot class: where the method being called comes from.
+     * "turnLeft() is inherited from Chassis", or, inside an override, "super.straight() runs Chassis's version".
+     */
+    private String origin(String call, List<StackWalker.StackFrame> chain) {
+        if (robot == null || !Sources.isStudent(robot.getClass().getName())) return null;
+        int paren = call.indexOf('(');
+        if (paren <= 0 || call.startsWith("new ")) return null;
+        String name = call.substring(0, paren);
+        Class<?> declaring = null;
+        for (Class<?> c = robot.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            if (!Sources.isStudent(c.getName()) && declares(c, name)) {
+                declaring = c;
+                break;
+            }
+        }
+        if (declaring == null) return null;           // not a robot method (a sensor's, for example)
+        if (!chain.isEmpty() && chain.get(0).getMethodName().equals(name)
+                && chain.get(0).getDeclaringClass().isInstance(robot)) {
+            return "Inside " + chain.get(0).getDeclaringClass().getSimpleName() + "." + name + "(), super." + name
+                    + "() runs " + declaring.getSimpleName() + "'s version.";
+        }
+        for (Class<?> c = robot.getClass(); c != declaring; c = c.getSuperclass()) {
+            if (declares(c, name)) return null;       // overridden: the override's own lines are what run
+        }
+        return name + "() is inherited: " + robot.getClass().getSimpleName() + " gets it from "
+                + declaring.getSimpleName() + ".";
+    }
+
+    private static boolean declares(Class<?> c, String name) {
+        for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
+            if (m.getName().equals(name) && !m.isSynthetic()) return true;
+        }
+        return false;
+    }
+
+    /** The student's robot class and everything above it, for the viewer's diagram. */
+    private List<Object> robotDiagram() {
+        if (robot == null) return null;
+        List<Object> boxes = new ArrayList<>();
+        for (Class<?> c = robot.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            Map<String, Object> box = new LinkedHashMap<>();
+            boolean mine = Sources.isStudent(c.getName());
+            box.put("name", c.getSimpleName());
+            box.put("mine", mine);
+            List<Object> fields = new ArrayList<>();
+            List<Object> methods = new ArrayList<>();
+            if (mine) {
+                for (java.lang.reflect.Field fd : c.getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(fd.getModifiers()) || fd.isSynthetic()) continue;
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("name", fd.getName());
+                    m.put("type", fd.getType().getSimpleName());
+                    String part = partOf(fd.getType());
+                    if (part != null) {
+                        m.put("part", part);
+                        try {
+                            fd.setAccessible(true);
+                            m.put("set", fd.get(robot) != null);
+                        } catch (ReflectiveOperationException | RuntimeException e) {
+                            // leave it unknown
+                        }
+                    }
+                    fields.add(m);
+                }
+                for (java.lang.reflect.Method md : c.getDeclaredMethods()) {
+                    if (md.isSynthetic() || java.lang.reflect.Modifier.isStatic(md.getModifiers())) continue;
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("name", md.getName() + "()");
+                    for (Class<?> up = c.getSuperclass(); up != null && up != Object.class; up = up.getSuperclass()) {
+                        if (declares(up, md.getName())) {
+                            m.put("overrides", up.getSimpleName());
+                            break;
+                        }
+                    }
+                    methods.add(m);
+                }
+            } else {
+                for (java.lang.reflect.Method md : c.getDeclaredMethods()) {
+                    if (java.lang.reflect.Modifier.isPublic(md.getModifiers())
+                            && !methods.contains(md.getName() + "()")) methods.add(md.getName() + "()");
+                }
+                if (c == mbot.MBot2.class) fields.add(Map.of("name", "built in", "type", "Ultrasonic, LineSensor"));
+            }
+            box.put("fields", fields);
+            box.put("methods", methods);
+            boxes.add(box);
+        }
+        return boxes;
+    }
+
+    private static String partOf(Class<?> type) {
+        if (type == mbot.Ultrasonic.class) return "ultrasonic";
+        if (type == mbot.LineSensor.class) return "line";
+        if (type == mbot.Scanner.class) return "scanner";
+        if (type == mbot.ColorSensor.class) return "color";
+        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -385,14 +563,29 @@ public final class Session {
         if (live) Viewer.show(console);
     }
 
+    private List<Object> diagram;
+
+    @SuppressWarnings("unchecked")
     private void save() {
         boolean crashed = !frames.isEmpty() && "error".equals(frames.get(frames.size() - 1).get("k"));
+        diagram = robotDiagram();
+        if (diagram != null && !diagram.isEmpty()) {
+            Map<String, Object> top = (Map<String, Object>) diagram.get(0);
+            for (Object o : (List<Object>) top.get("fields")) {
+                Map<String, Object> fd = (Map<String, Object>) o;
+                if (Boolean.FALSE.equals(fd.get("set"))) {
+                    Map<String, Object> f = frame("note", "");
+                    add(f, top.get("name") + " declares " + fd.get("type") + " " + fd.get("name") + ", but it is still null: "
+                            + "it was never plugged in. Add " + fd.get("name") + " = new " + fd.get("type")
+                            + "(this); to the constructor.");
+                }
+            }
+        }
         for (String need : world.requires) {
             if (!parts.contains(need) && robots > 0) {
                 Map<String, Object> f = frame("note", "");
-                add(f, need.equals("ultrasonic")
-                        ? "This world has things to detect, but your robot never got an Ultrasonic. Plug one in: new Ultrasonic(base)"
-                        : "This world has tape to find, but your robot never got a LineSensor. Plug one in: new LineSensor(base)");
+                add(f, "This world is built for a" + (need.equals("ultrasonic") ? "n " : " ") + PART_CLASS.get(need)
+                        + ", but your robot never got one. Plug one in: new " + PART_CLASS.get(need) + "(robot)");
             }
         }
         if (!crashed) {
@@ -422,14 +615,16 @@ public final class Session {
         t.put("main", mainName);
         t.put("worldName", world.name);
         t.put("world", world.raw);
-        Map<String, Object> robot = new LinkedHashMap<>();
-        robot.put("radius", Specs.RADIUS_CM);
-        robot.put("usOffset", Specs.US_OFFSET_CM);
-        robot.put("usHalfAngle", Specs.US_HALF_ANGLE_DEG);
-        robot.put("usMax", Specs.US_MAX_CM);
-        robot.put("lineAhead", Specs.LINE_AHEAD_CM);
-        robot.put("lineProbes", Specs.LINE_PROBES_CM);
-        t.put("robot", robot);
+        Map<String, Object> specs = new LinkedHashMap<>();
+        specs.put("radius", Specs.RADIUS_CM);
+        specs.put("usOffset", Specs.US_OFFSET_CM);
+        specs.put("usHalfAngle", Specs.US_HALF_ANGLE_DEG);
+        specs.put("usMax", Specs.US_MAX_CM);
+        specs.put("lineAhead", Specs.LINE_AHEAD_CM);
+        specs.put("lineProbes", Specs.LINE_PROBES_CM);
+        specs.put("scannerOffset", Specs.SCANNER_OFFSET_CM);
+        t.put("robot", specs);
+        if (diagram != null) t.put("diagram", diagram);
         t.put("sources", sources.files);
         t.put("frames", frames);
         return t;

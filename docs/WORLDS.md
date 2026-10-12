@@ -27,9 +27,10 @@ project folder).
 | `tape` | Dark tape on the floor, as a polyline. Only the line sensor sees it |
 | `zones` | Coloured patches with a label. Nothing reacts to them while driving; tests ask `Testing.insideZone("P")` |
 | `objects` | Things to detect: `box` (solid, like a short wall) or `can` (round, radius `r`). The robot bumps them and the ultrasonic sees them |
-| `requires` | Sensors the world is built for (`"ultrasonic"`, `"line"`). If the run ends without one plugged in, the viewer says so |
+| `patches` | Colored floor for the `ColorSensor`: `{"x","y","w","h","color"}`, color one of `red` `green` `blue` `yellow`. Later patches sit on top; tape reads `black`, bare floor `white` |
+| `requires` | Sensors the world is built for (`"ultrasonic"`, `"line"`, `"scanner"`, `"color"`). If the run ends without one plugged in, the viewer says so |
 
-Built-in worlds: `open-room`, `wall-ahead`, `parking`, `hallway`, `obstacles`, `line-track`.
+Built-in worlds: `open-room`, `wall-ahead`, `parking`, `hallway`, `obstacles`, `line-track`, `color-zones`, `junctions`.
 
 **Graded lab challenges should use their own world file in the lab repo**, not a built-in one:
 this repo is public, and its tests contain routes that solve the built-in worlds.

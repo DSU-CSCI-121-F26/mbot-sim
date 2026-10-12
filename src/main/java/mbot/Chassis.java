@@ -22,12 +22,8 @@ public class Chassis {
 
     /** Turns on a bare robot: motors and lights, no sensors yet. */
     public Chassis() {
-        this(false);
-    }
-
-    /** For MBot2, which comes with its sensors already plugged in. */
-    Chassis(boolean withSensors) {
-        session = Session.start(withSensors ? "MBot2" : "Chassis");
+        // The session looks at what this object really is (a Chassis, an MBot2, or your own class)
+        session = Session.start(this);
     }
 
     // ------------------------------------------------------------------ driving

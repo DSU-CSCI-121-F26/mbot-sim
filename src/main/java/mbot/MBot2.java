@@ -4,6 +4,20 @@ package mbot;
  * Your mBot2 robot, fully put together: a {@link Chassis} that comes with its
  * ultrasonic sensor and line sensor already plugged in.
  *
+ * <p>To build your own robot, write a class that {@code extends MBot2}. It gets everything an
+ * MBot2 can do, and you add the extra sensors it needs as fields:
+ *
+ * <pre>
+ * public class Scout extends MBot2 {
+ *     private Scanner scanner;
+ *
+ *     public Scout() {
+ *         super();                      // build the MBot2 part first
+ *         scanner = new Scanner(this);  // then plug in the extras
+ *     }
+ * }
+ * </pre>
+ *
  * <p>Make one at the start of {@code main}, then tell it what to do:
  *
  * <pre>
@@ -21,7 +35,7 @@ public class MBot2 extends Chassis {
 
     /** Turns on the robot. Make one of these at the start of {@code main}. */
     public MBot2() {
-        super(true);
+        super();
     }
 
     /**
@@ -49,5 +63,22 @@ public class MBot2 extends Chassis {
      */
     public int readLineStatus() {
         return session.readLineStatus("readLineStatus()");
+    }
+
+    /**
+     * The robot's mission. An MBot2's own run() does nothing. When you write your own robot
+     * class that {@code extends MBot2}, <b>override</b> this method with what your robot should do:
+     *
+     * <pre>
+     * public class Scout extends MBot2 {
+     *     &#64;Override
+     *     public void run() {
+     *         straight(30);
+     *     }
+     * }
+     * </pre>
+     */
+    public void run() {
+        session.emptyRun();
     }
 }

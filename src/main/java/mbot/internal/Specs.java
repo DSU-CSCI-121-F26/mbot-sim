@@ -34,6 +34,11 @@ public final class Specs {
     public static final double US_MAX_CM = 300;
     public static final double US_MIN_CM = 3;
 
+    /** Scanner: an ultrasonic on a servo, mounted on top just ahead of the centre. Simulator-only part. */
+    public static final double SCANNER_OFFSET_CM = 3;
+    public static final double SCANNER_HALF_ANGLE_DEG = 8;
+    public static final double SCAN_STEP_S = 0.15;
+
     /** Quad line sensor: probes sit this far ahead of the centre, at these sideways offsets (left is +). */
     public static final double LINE_AHEAD_CM = 6;
     public static final double[] LINE_PROBES_CM = {3.6, 1.2, -1.2, -3.6};

@@ -65,6 +65,8 @@ main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-
 .hud .row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .hud .lbl { color: var(--muted); }
 .hud .row.off { opacity: .45; }
+.hud .row[hidden] { display: none; }
+.hud .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1px solid var(--line); margin-right: 5px; vertical-align: -1px; }
 .hud .row.off b { font-family: var(--sans); font-weight: 400; font-style: italic; }
 .hud b { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
 .probes { display: flex; gap: 3px; }
@@ -101,6 +103,23 @@ aside { border-left: 1px solid var(--line); background: var(--panel); display: f
 .say .value { font-family: var(--mono); font-weight: 700; color: var(--accent); }
 
 .code { flex: 1; min-height: 120px; }
+.diagram summary { list-style: none; cursor: pointer; }
+.diagram summary::-webkit-details-marker { display: none; }
+.diagram summary h2::after { content: '▸'; margin-left: auto; }
+.diagram[open] summary h2::after { content: '▾'; }
+#diagram { padding: 0 14px 12px; display: flex; flex-direction: column; align-items: stretch; gap: 0; font: 12px/1.45 var(--mono); }
+.uml { border: 1.5px solid var(--line); border-radius: 6px; background: var(--soft); }
+.uml.mine { border-color: var(--accent); background: var(--accent-soft); }
+.uml .t { font-weight: 700; padding: 4px 8px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+.uml .t small { font-weight: 400; color: var(--muted); font-family: var(--sans); }
+.uml .s { padding: 3px 8px; border-bottom: 1px solid var(--line); }
+.uml .s:last-child { border-bottom: 0; }
+.uml .s div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uml .null { color: var(--bad); }
+.uml .s div.wrap { white-space: normal; color: var(--ink2); }
+.uml .ov { color: var(--accent); font-family: var(--sans); font-size: 11px; }
+.ext { text-align: center; color: var(--muted); font: 11px var(--sans); padding: 2px 0; }
+.ext::before { content: '▲'; display: block; line-height: 1; }
 .code pre { margin: 0; flex: 1; overflow: auto; font: 12.5px/1.6 var(--mono); padding: 4px 0 12px; }
 .code .ln { display: grid; grid-template-columns: 34px 30px 1fr; white-space: pre; border-left: 3px solid transparent; }
 .code .ln .n { color: var(--muted); text-align: right; padding-right: 6px; user-select: none; }
@@ -108,6 +127,7 @@ aside { border-left: 1px solid var(--line); background: var(--panel); display: f
 .code .ln.hit { background: var(--soft); }
 .code .ln.cur { background: var(--hl); border-left-color: var(--hl-edge); }
 .code .ln.via { background: var(--accent-soft); border-left-color: var(--accent); }
+.say .how { margin-top: 6px; font-size: 13px; color: var(--accent); }
 .say .via { margin-top: 6px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
 .say .via button { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-family: var(--mono); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
 .code .ln.err { background: var(--bad-soft); border-left-color: var(--bad); }
@@ -154,6 +174,8 @@ aside { border-left: 1px solid var(--line); background: var(--panel); display: f
       <div class="overlay hud" aria-label="Robot sensors">
         <div class="row" id="hudUsRow"><span class="lbl">Ultrasonic</span><b id="hudUs">–</b></div>
         <div class="row" id="hudLineRow"><span class="lbl">Line sensor</span><span class="probes" id="hudLine"><i></i><i></i><i></i><i></i></span></div>
+        <div class="row" id="hudScanRow" hidden><span class="lbl">Scanner</span><b id="hudScan">–</b></div>
+        <div class="row" id="hudColorRow" hidden><span class="lbl">Color</span><b id="hudColor">–</b></div>
         <div class="row"><span class="lbl">Lights</span><span class="leds" id="hudLeds"><i></i><i></i><i></i><i></i><i></i></span></div>
         <div class="row"><span class="lbl">Robot time</span><b id="hudTime">0.0 s</b></div>
         <div class="row"><span class="lbl">Distance driven</span><b id="hudDist">0 cm</b></div>
@@ -180,6 +202,10 @@ aside { border-left: 1px solid var(--line); background: var(--panel); display: f
       <h2>What's happening</h2>
       <div class="say" id="say"><p class="extra">Nothing yet.</p></div>
     </div>
+    <details class="card diagram" id="diagramCard" hidden>
+      <summary><h2>Your robot</h2></summary>
+      <div id="diagram"></div>
+    </details>
     <div class="card code">
       <h2>Your code <span class="tabs" id="tabs"></span></h2>
       <pre id="code"></pre>
@@ -288,6 +314,22 @@ function makeRobot() {
   addTo(lineMod, new THREE.Mesh(new THREE.BoxGeometry(3, 1, 9), mat(0x16181b)), 6.2, 1.2, 0);
   for (let k = 0; k < 4; k++) addTo(lineMod, new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 1), mat(0xf2f2f2, { emissive: 0x777777 })), 7.8, 1.2, (k - 1.5) * 2.4);
   g.add(lineMod);
+  // Scanner: a servo on top with a small ultrasonic head that turns
+  const scanner = new THREE.Group();
+  addTo(scanner, new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 2.4), mat(0x2b2f33)), 3, 11.2, 0);
+  const head = new THREE.Group(); head.position.set(3, 13.2, 0);
+  addTo(head, new THREE.Mesh(new THREE.BoxGeometry(1.4, 2, 5), mat(0x16181b)), 0.4, 0, 0);
+  for (const side of [-1, 1]) {
+    const e = addTo(head, new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.8, 18), mat(0xf2b134, { emissive: 0x5a3d00 })), 1.3, 0, side * 1.3);
+    e.rotation.z = Math.PI / 2;
+  }
+  scanner.add(head);
+  g.add(scanner);
+  // Color sensor: a board under the front with one light that shows the color it reads
+  const colorMod = new THREE.Group();
+  addTo(colorMod, new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.8, 3), mat(0x16181b)), 4.2, 1.6, 0);
+  const colorLed = addTo(colorMod, new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x666666 })), 5.6, 1.6, 0);
+  g.add(colorMod);
   // Smile
   const smile = add(new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.22, 8, 20, Math.PI), mat(0x101012)), 7.55, 4.6, 0);
   smile.rotation.y = Math.PI / 2;
@@ -298,7 +340,7 @@ function makeRobot() {
     leds.push(add(new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), new THREE.MeshStandardMaterial({ color: 0x555555, emissive: 0x000000 })), 4.2, 10.25, (i - 2) * 1.7));
   }
   // Line probes underneath (only visible from low angles, mostly a marker)
-  g.userData = { screenCanvas, screenTex, leds, eyes, lineMod };
+  g.userData = { screenCanvas, screenTex, leds, eyes, lineMod, scanner, head, colorMod, colorLed };
   return g;
 }
 const robot = makeRobot();
@@ -327,6 +369,8 @@ scene.add(beam);
 const hitDot = new THREE.Mesh(new THREE.SphereGeometry(1.6, 16, 12), new THREE.MeshBasicMaterial({ color: 0xe0443a }));
 hitDot.visible = false;
 scene.add(hitDot);
+const scanGroup = new THREE.Group();
+scene.add(scanGroup);
 const probeDots = [];
 for (let i = 0; i < 4; i++) {
   const d = new THREE.Mesh(new THREE.CircleGeometry(1.1, 16), new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.9 }));
@@ -374,6 +418,12 @@ function buildWorld(t) {
   box(-B, 0, B, H, 10, edgeMat); box(W, 0, B, H, 10, edgeMat);
   for (const wl of (w.walls || [])) box(wl.x, wl.y, wl.w, wl.h, 15, wallMat);
 
+  const PATCH = { red: 0xd94b3d, green: 0x3fa65a, blue: 0x3d7dd6, yellow: 0xf0c330 };
+  for (const pt of (w.patches || [])) {
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(pt.w, pt.h), new THREE.MeshStandardMaterial({ color: PATCH[pt.color] ?? 0x999999, roughness: 0.9 }));
+    plane.rotation.x = -Math.PI / 2; plane.position.set(pt.x + pt.w / 2, 0.06, -(pt.y + pt.h / 2)); plane.receiveShadow = true;
+    worldGroup.add(plane);
+  }
   for (const ob of (w.objects || [])) {
     const m = new THREE.MeshStandardMaterial({ color: ob.color || '#c8823a', roughness: 0.6 });
     if (ob.shape === 'can') {
@@ -506,6 +556,7 @@ function load(t) {
   fileShown = files.includes(firstFile) ? firstFile : files[0] ?? null;
   renderTabs(files);
   renderCode();
+  renderDiagram(t.diagram);
   setCam(camMode === 'follow' ? 'follow' : camMode);
   seek(0, 0);
 }
@@ -568,6 +619,33 @@ function showState() {
   const P = pre.parts[cur], hasUs = P.includes('ultrasonic'), hasLine = P.includes('line');
   robot.userData.eyes.visible = hasUs;
   robot.userData.lineMod.visible = hasLine;
+  const hasScan = P.includes('scanner'), hasColor = P.includes('color');
+  robot.userData.scanner.visible = hasScan;
+  robot.userData.colorMod.visible = hasColor;
+  $('hudScanRow').hidden = !hasScan;
+  $('hudColorRow').hidden = !hasColor;
+  scanGroup.clear();
+  robot.userData.head.rotation.y = 0;
+  if (f.k === 'scan' && f.rays) {
+    const r = trace.robot, h = pose[2] * Math.PI / 180, off = r.scannerOffset ?? 3;
+    const sx = pose[0] + off * Math.cos(h), sy = pose[1] + off * Math.sin(h);
+    // sweep: during the step the head turns through the rays one by one
+    const shown = frac >= 0.999 ? f.rays.length : Math.max(1, Math.ceil(frac * f.rays.length));
+    f.rays.slice(0, shown).forEach(([ang, dist, hx, hy], k) => {
+      const a = h + ang * Math.PI / 180, ex = sx + dist * Math.cos(a), ey = sy + dist * Math.sin(a);
+      const g2 = new THREE.BufferGeometry().setFromPoints([toThree(sx, sy, 13.2), toThree(ex, ey, 13.2)]);
+      scanGroup.add(new THREE.Line(g2, new THREE.LineBasicMaterial({ color: 0xf2a516 })));
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 10), new THREE.MeshBasicMaterial({ color: 0xf2a516 }));
+      dot.position.copy(toThree(ex, ey, 13.2)); scanGroup.add(dot);
+      if (k === shown - 1) robot.userData.head.rotation.y = ang * Math.PI / 180;
+    });
+  }
+  const lastScan = lastValue(cur, fr => fr.k === 'scan');
+  $('hudScan').textContent = !lastScan ? '–' : Array.isArray(lastScan.v) ? lastScan.v.map(v => Math.round(v)).join(' ') : `${lastScan.v} cm`;
+  const lastColor = lastValue(cur, fr => fr.color);
+  const SW = { white: '#f4f4f0', black: '#1d1d1f', red: '#d94b3d', green: '#3fa65a', blue: '#3d7dd6', yellow: '#f0c330' };
+  $('hudColor').innerHTML = lastColor ? `<i class="swatch" style="background:${SW[lastColor.color]}"></i>${lastColor.color}` : '–';
+  robot.userData.colorLed.material.emissive.set(lastColor ? SW[lastColor.color] : '#666666');
   $('hudUsRow').classList.toggle('off', !hasUs);
   $('hudLineRow').classList.toggle('off', !hasLine);
 
@@ -644,12 +722,34 @@ function renderSay() {
       return `<div class="via"><button data-file="${esc(vf)}" data-line="${vl}">↳ called from ${esc(vf)} · line ${vl}</button>${t ? ` <code>${esc(t)}</code>` : ''}</div>`;
     }).join('')}
     <p>${esc(f.m ?? '')}</p>
+    ${f.how ? `<div class="how">${esc(f.how)}</div>` : ''}
     ${extra ? `<div class="extra">${extra}</div>` : ''}`;
   el.querySelectorAll('.via button').forEach(b => b.onclick = () => {
     fileShown = b.dataset.file; renderTabs(Object.keys(trace.sources)); renderCode(); highlightCode(false);
     const ln = $('code').querySelector(`.ln[data-l="${b.dataset.line}"]`);
     if (ln) { ln.classList.add('via'); $('code').scrollTop = ln.offsetTop - $('code').offsetTop - $('code').clientHeight / 3; }
   });
+}
+
+function renderDiagram(boxes) {
+  const card = $('diagramCard');
+  const mine = (boxes || []).some(b => b.mine);
+  card.hidden = !mine;
+  if (!mine) return;
+  card.open = true;
+  const row = x => `<div>${x}</div>`;
+  // Superclass on top, your class at the bottom; "extends" points up, like a UML diagram.
+  $('diagram').innerHTML = boxes.slice().reverse().map((b, i) => {
+    const fields = (b.fields || []).map(f => f.set === false
+      ? row(`<span class="null">${esc(f.type)} ${esc(f.name)} = null</span>`)
+      : row(`${esc(f.type)} ${esc(f.name)}${f.part ? ' ✓' : ''}`)).join('');
+    const methods = b.mine
+      ? (b.methods || []).map(m => row(`${esc(m.name)}${m.overrides ? ` <span class="ov">overrides ${esc(m.overrides)}</span>` : ''}`)).join('')
+      : `<div class="wrap">${esc((b.methods || []).join(', '))}</div>`;
+    return (i > 0 ? `<div class="ext">extends</div>` : '')
+      + `<div class="uml${b.mine ? ' mine' : ''}"><div class="t">${esc(b.name)}<small>${b.mine ? 'your class' : 'mbot'}</small></div>`
+      + (fields ? `<div class="s">${fields}</div>` : '') + (methods ? `<div class="s">${methods}</div>` : '') + `</div>`;
+  }).join('');
 }
 
 function renderTabs(files) {

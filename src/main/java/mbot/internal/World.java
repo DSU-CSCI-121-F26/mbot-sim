@@ -18,7 +18,12 @@ import java.util.Map;
  */
 public final class World {
 
-    public static final String[] BUILT_IN = {"open-room", "wall-ahead", "parking", "hallway", "obstacles", "line-track"};
+    public static final String[] BUILT_IN = {"open-room", "wall-ahead", "parking", "hallway", "obstacles", "line-track",
+            "color-zones", "junctions"};
+    public static final java.util.Set<String> COLORS = java.util.Set.of("red", "green", "blue", "yellow");
+
+    /** A colored patch of floor, for the ColorSensor. */
+    public record Patch(double x, double y, double w, double h, String color) {}
     static final double BORDER_CM = 5;
 
     public final String name;
@@ -29,6 +34,7 @@ public final class World {
     public final List<double[]> tape = new ArrayList<>();      // {x1, y1, x2, y2, width}
     public final List<double[]> cans = new ArrayList<>();      // {x, y, r}, solid round objects
     public final List<String> requires = new ArrayList<>();    // sensors this world is built for
+    public final List<Patch> patches = new ArrayList<>();      // colored floor, later ones on top
     private final Map<String, List<double[]>> zones = new java.util.HashMap<>();
 
     @SuppressWarnings("unchecked")
@@ -66,6 +72,14 @@ public final class World {
             Map<String, Object> z = (Map<String, Object>) o;
             zones.computeIfAbsent(String.valueOf(z.get("label")), k -> new ArrayList<>())
                     .add(new double[]{d(z.get("x")), d(z.get("y")), d(z.get("w")), d(z.get("h"))});
+        }
+        for (Object o : (List<Object>) raw.getOrDefault("patches", List.of())) {
+            Map<String, Object> pt = (Map<String, Object>) o;
+            String color = String.valueOf(pt.get("color"));
+            if (!COLORS.contains(color)) {
+                throw new IllegalArgumentException("World " + name + ": patch color must be one of " + COLORS + ", not " + color);
+            }
+            patches.add(new Patch(d(pt.get("x")), d(pt.get("y")), d(pt.get("w")), d(pt.get("h")), color));
         }
         for (Object o : (List<Object>) raw.getOrDefault("requires", List.of())) {
             requires.add(String.valueOf(o));
