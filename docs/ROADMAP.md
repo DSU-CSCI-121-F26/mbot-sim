@@ -76,7 +76,7 @@ Every number in `Specs.java` marked UNCALIBRATED, plus three behaviours to confi
 
 ## Open decisions
 
-1. **Distribution.** Decided: a Maven repo on GitHub Pages (`CD-CSCI-10447/mbot-sim`, see
+1. **Distribution.** Decided: a Maven repo on GitHub Pages (`DSU-CSCI-121-F26/mbot-sim`, see
    README). Maven Central later would remove the `<repository>` block from every lab; the
    code would not change.
 2. **Where lab answers live.** Not in this repo (it is public). Use the course's

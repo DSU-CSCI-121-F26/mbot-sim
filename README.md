@@ -100,14 +100,14 @@ camera, which is useful for pointing a student at one moment.
 ## Getting it to students
 
 Releases are published to a Maven repo hosted on GitHub Pages:
-**https://cd-csci-10447.github.io/mbot-sim/maven**. No login, nothing builds on request: it is
+**https://dsu-csci-121-f26.github.io/mbot-sim/maven**. No login, nothing builds on request: it is
 plain files on GitHub's servers. A lab's `pom.xml` needs these two blocks (see `starter/pom.xml`):
 
 ```xml
 <repositories>
   <repository>
     <id>mbot-sim</id>
-    <url>https://cd-csci-10447.github.io/mbot-sim/maven</url>
+    <url>https://dsu-csci-121-f26.github.io/mbot-sim/maven</url>
   </repository>
 </repositories>
 

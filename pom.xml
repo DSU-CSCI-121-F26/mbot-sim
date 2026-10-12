@@ -19,7 +19,7 @@
   <version>0.2.0</version>
   <name>mbot-sim</name>
   <description>Write plain Java for the mBot2 and watch it drive in a 3D viewer.</description>
-  <url>https://github.com/CD-CSCI-10447/mbot-sim</url>
+  <url>https://github.com/DSU-CSCI-121-F26/mbot-sim</url>
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>

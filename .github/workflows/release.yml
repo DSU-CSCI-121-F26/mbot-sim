@@ -5,7 +5,7 @@
 #
 # This builds and tests the tag, then deploys the jar (and a sources jar, so IntelliJ can show
 # the Javadoc) into the gh-pages branch under maven/. Pages serves it at
-#   https://cd-csci-10447.github.io/mbot-sim/maven
+#   https://dsu-csci-121-f26.github.io/mbot-sim/maven
 # A published version is never overwritten: labs pin exact versions and must not change under students.
 name: Release
 

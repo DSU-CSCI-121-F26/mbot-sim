@@ -17,7 +17,7 @@
   <repositories>
     <repository>
       <id>mbot-sim</id>
-      <url>https://cd-csci-10447.github.io/mbot-sim/maven</url>
+      <url>https://dsu-csci-121-f26.github.io/mbot-sim/maven</url>
     </repository>
   </repositories>
 
