@@ -121,7 +121,7 @@ plain files on GitHub's servers. A lab's `pom.xml` needs these two blocks (see `
   <dependency>
     <groupId>edu.desu.cis</groupId>
     <artifactId>mbot-sim</artifactId>
-    <version>0.1.0</version>
+    <version>1.0.0</version>
   </dependency>
 </dependencies>
 ```

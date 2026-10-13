@@ -10,7 +10,7 @@ so the switch to hardware is one setting in the annotation, not a rewrite:
 @MBotLab(robot = "StingBot")        // later: the student's own robot, same code
 ```
 
-## 0.1.0 — the first release · built
+## First release (0.1.0) · built
 
 **Loops and if (Follow-Along Parts 06–09).** `MBot2`: `straight`, `turnLeft/Right`, `forward`
 (open and timed), `setMotorPower`, `stop`, `readUltrasonic`, `readLineStatus`, `turnLedOn/Off`.
@@ -33,7 +33,7 @@ student's class chain from their real code (fields, null sensor fields in red, o
 says where each call comes from ("straight() is inherited from Chassis", "super.straight()
 runs Chassis's version"). Worlds: `color-zones` (floor `patches`), `junctions`.
 
-## Boards and hide and seek · built (not yet released)
+## Boards and hide and seek · released in 1.0.0
 
 **Student-built boards.** `class MyMaze extends Board`: a text map (`#` walls, `S` start, `G`
 goal, `o` cans, `x` boxes, tape, colored floor, `D` sentries) and/or placement methods; rules
@@ -67,7 +67,7 @@ drives, reads, scans or waits.
 - A `mode` readout and a timeline strip coloured by mode.
 - Ties to the existing Robocode `switch (mode)` upgrade and to the term project's `MazeRobot`.
 
-## 1.0 — the real robot
+## The real robot (next major release)
 
 `@MBotLab(robot = "...")` switches `Session` from the simulator to a **BRACE backend** that
 speaks `stingsim/docs/PROTOCOL.md`: UDP discovery on 9998, TCP commands on 9990, telemetry on
@@ -103,5 +103,5 @@ Every number in `Specs.java` marked UNCALIBRATED, plus three behaviours to confi
    code would not change.
 2. **Where lab answers live.** Not in this repo (it is public). Use the course's
    gitignored `solution/` convention, or a private instructor kit like CSCI 558's.
-3. **Who builds v1.0.** The BRACE backend is about a week of focused work plus a session with a
+3. **Who builds the real-robot backend.** It is about a week of focused work plus a session with a
    real robot.
